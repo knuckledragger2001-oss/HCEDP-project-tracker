@@ -1,13 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { LEAD_SOURCE_LABELS } from "@/lib/format";
 
-// Filters shared by both partner reports. All optional; absent = no constraint.
+// Filters shared by the reports. All optional; absent = no constraint.
 export interface ReportFilters {
   communityId?: string | null;
   from?: Date | null; // inclusive lower bound on submissionDate
   to?: Date | null; // inclusive upper bound on submissionDate
   naicsCode?: string | null;
   stage?: string | null; // PipelineStage value
+  electricProviderId?: string | null;
+  waterProviderId?: string | null;
 }
 
 export interface ReportFilterLabels {
@@ -15,6 +18,8 @@ export interface ReportFilterLabels {
   period: string;
   naics: string;
   stage: string;
+  electricProvider?: string;
+  waterProvider?: string;
 }
 
 // Build the Prisma `where` for Submission rows that satisfy the filters.
@@ -26,9 +31,12 @@ function submissionWhere(f: ReportFilters): Prisma.SubmissionWhereInput {
     if (f.from) where.submissionDate.gte = f.from;
     if (f.to) where.submissionDate.lte = f.to;
   }
-  if (f.communityId) {
-    where.site = { communityId: f.communityId };
-  }
+  const siteWhere: Prisma.SiteWhereInput = {};
+  if (f.communityId) siteWhere.communityId = f.communityId;
+  if (f.electricProviderId) siteWhere.electricProviderId = f.electricProviderId;
+  if (f.waterProviderId) siteWhere.waterProviderId = f.waterProviderId;
+  if (Object.keys(siteWhere).length > 0) where.site = siteWhere;
+
   // Archived projects are excluded from all reporting.
   const projectWhere: Prisma.ProjectWhereInput = { archivedAt: null };
   if (f.naicsCode) projectWhere.naicsCode = f.naicsCode;
@@ -57,11 +65,22 @@ export async function describeFilters(
   else if (f.from) period = `From ${fmt(f.from)}`;
   else if (f.to) period = `Through ${fmt(f.to)}`;
 
+  const providerName = async (id: string | null | undefined) => {
+    if (!id) return undefined;
+    const p = await prisma.utilityProvider.findUnique({
+      where: { id },
+      select: { name: true },
+    });
+    return p?.name ?? "Unknown provider";
+  };
+
   return {
     community,
     period,
     naics: f.naicsCode ? f.naicsCode : "All",
     stage: f.stage ? f.stage.replace(/_/g, " ") : "All",
+    electricProvider: await providerName(f.electricProviderId),
+    waterProvider: await providerName(f.waterProviderId),
   };
 }
 
@@ -307,6 +326,8 @@ export function parseFilters(params: URLSearchParams): ReportFilters {
   const communityId = params.get("communityId");
   const naicsCode = params.get("naics");
   const stage = params.get("stage");
+  const electricProviderId = params.get("electricProviderId");
+  const waterProviderId = params.get("waterProviderId");
   const fromStr = params.get("from");
   const toStr = params.get("to");
   const quarter = params.get("quarter"); // format: YYYY-Qn
@@ -333,7 +354,163 @@ export function parseFilters(params: URLSearchParams): ReportFilters {
     communityId: communityId || null,
     naicsCode: naicsCode || null,
     stage: stage || null,
+    electricProviderId: electricProviderId || null,
+    waterProviderId: waterProviderId || null,
     from: from && !isNaN(from.getTime()) ? from : null,
     to: to && !isNaN(to.getTime()) ? to : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Report 3 — Lead Source Summary
+// Project-level performance grouped by lead source: win rate, average time
+// from RFI receipt to response submission, and rolled-up scale (jobs, acreage,
+// distinct industries). Date filter applies to rfiReceivedDate.
+// ---------------------------------------------------------------------------
+
+export interface LeadSourceRow {
+  leadSource: string;
+  leadSourceLabel: string;
+  projects: number;
+  won: number;
+  lost: number;
+  active: number;
+  successRate: number | null; // won / decided (won+lost), as a fraction 0..1
+  avgDaysToSubmit: number | null;
+  peakJobs: number;
+  avgAcreage: number | null;
+  industries: number;
+}
+export interface LeadSourceReport {
+  kind: "lead-source";
+  filters: ReportFilterLabels;
+  rows: LeadSourceRow[];
+  totals: {
+    projects: number;
+    won: number;
+    lost: number;
+    active: number;
+    peakJobs: number;
+  };
+}
+
+export async function leadSourceReport(
+  f: ReportFilters,
+): Promise<LeadSourceReport> {
+  const where: Prisma.ProjectWhereInput = { archivedAt: null };
+  if (f.naicsCode) where.naicsCode = f.naicsCode;
+  if (f.stage) where.stage = f.stage as Prisma.ProjectWhereInput["stage"];
+  if (f.from || f.to) {
+    where.rfiReceivedDate = {};
+    if (f.from) where.rfiReceivedDate.gte = f.from;
+    if (f.to) where.rfiReceivedDate.lte = f.to;
+  }
+
+  const projects = await prisma.project.findMany({
+    where,
+    select: {
+      leadSource: true,
+      stage: true,
+      naicsCode: true,
+      minAcreage: true,
+      rfiReceivedDate: true,
+      responseSubmittedDate: true,
+      jobPhases: { select: { count: true } },
+    },
+  });
+
+  type Acc = {
+    projects: number;
+    won: number;
+    lost: number;
+    active: number;
+    daysSum: number;
+    daysCount: number;
+    peakJobs: number;
+    acreageSum: number;
+    acreageCount: number;
+    industries: Set<string>;
+  };
+  const map = new Map<string, Acc>();
+  const get = (k: string): Acc => {
+    let a = map.get(k);
+    if (!a) {
+      a = {
+        projects: 0,
+        won: 0,
+        lost: 0,
+        active: 0,
+        daysSum: 0,
+        daysCount: 0,
+        peakJobs: 0,
+        acreageSum: 0,
+        acreageCount: 0,
+        industries: new Set(),
+      };
+      map.set(k, a);
+    }
+    return a;
+  };
+
+  for (const p of projects) {
+    const a = get(p.leadSource);
+    a.projects += 1;
+    if (p.stage === "WON") a.won += 1;
+    else if (p.stage === "LOST") a.lost += 1;
+    else a.active += 1;
+
+    if (p.rfiReceivedDate && p.responseSubmittedDate) {
+      const days =
+        (p.responseSubmittedDate.getTime() - p.rfiReceivedDate.getTime()) /
+        86_400_000;
+      if (days >= 0) {
+        a.daysSum += days;
+        a.daysCount += 1;
+      }
+    }
+    const peak = p.jobPhases.reduce((m, j) => Math.max(m, j.count), 0);
+    a.peakJobs += peak;
+    if (p.minAcreage != null) {
+      a.acreageSum += p.minAcreage;
+      a.acreageCount += 1;
+    }
+    if (p.naicsCode) a.industries.add(p.naicsCode);
+  }
+
+  const rows: LeadSourceRow[] = [...map.entries()]
+    .map(([leadSource, a]) => {
+      const decided = a.won + a.lost;
+      return {
+        leadSource,
+        leadSourceLabel: LEAD_SOURCE_LABELS[leadSource] ?? leadSource,
+        projects: a.projects,
+        won: a.won,
+        lost: a.lost,
+        active: a.active,
+        successRate: decided > 0 ? a.won / decided : null,
+        avgDaysToSubmit: a.daysCount > 0 ? a.daysSum / a.daysCount : null,
+        peakJobs: a.peakJobs,
+        avgAcreage: a.acreageCount > 0 ? a.acreageSum / a.acreageCount : null,
+        industries: a.industries.size,
+      };
+    })
+    .sort((x, y) => y.projects - x.projects);
+
+  const totals = rows.reduce(
+    (acc, r) => ({
+      projects: acc.projects + r.projects,
+      won: acc.won + r.won,
+      lost: acc.lost + r.lost,
+      active: acc.active + r.active,
+      peakJobs: acc.peakJobs + r.peakJobs,
+    }),
+    { projects: 0, won: 0, lost: 0, active: 0, peakJobs: 0 },
+  );
+
+  return {
+    kind: "lead-source",
+    filters: await describeFilters(f),
+    rows,
+    totals,
   };
 }

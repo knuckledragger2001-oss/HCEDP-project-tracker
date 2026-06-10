@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import {
   type CityActivityReport,
+  type LeadSourceReport,
   type QuarterlyReport,
   type ReportFilterLabels,
 } from "@/lib/reports/data";
@@ -122,6 +123,75 @@ export async function quarterlyXlsx(report: QuarterlyReport): Promise<Buffer> {
     report.totals.active,
     report.totals.won,
     report.totals.lost,
+  ]);
+  totalRow.font = { bold: true };
+
+  ws.columns.forEach((col) => {
+    let max = 10;
+    col.eachCell?.({ includeEmpty: false }, (cell) => {
+      const len = String(cell.value ?? "").length;
+      if (len > max) max = len;
+    });
+    col.width = max + 2;
+  });
+
+  const out = await wb.xlsx.writeBuffer();
+  return Buffer.from(out);
+}
+
+function pct(v: number | null): string {
+  return v == null ? "—" : `${Math.round(v * 100)}%`;
+}
+function days(v: number | null): string {
+  return v == null ? "—" : `${Math.round(v)}`;
+}
+
+export async function leadSourceXlsx(report: LeadSourceReport): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "HCEDP Projects Tracker";
+  const ws = wb.addWorksheet("Lead Source Summary");
+
+  writeFilterBlock(ws, "Lead Source Summary", report.filters);
+
+  const headerRow = ws.addRow([
+    "Lead Source",
+    "Projects",
+    "Won",
+    "Lost",
+    "Active",
+    "Win Rate",
+    "Avg Days to Submit",
+    "Peak Jobs",
+    "Avg Acreage",
+    "Industries",
+  ]);
+  styleHeader(headerRow);
+
+  for (const r of report.rows) {
+    ws.addRow([
+      r.leadSourceLabel,
+      r.projects,
+      r.won,
+      r.lost,
+      r.active,
+      pct(r.successRate),
+      days(r.avgDaysToSubmit),
+      r.peakJobs,
+      r.avgAcreage == null ? "" : Math.round(r.avgAcreage),
+      r.industries,
+    ]);
+  }
+  const totalRow = ws.addRow([
+    "Total",
+    report.totals.projects,
+    report.totals.won,
+    report.totals.lost,
+    report.totals.active,
+    "",
+    "",
+    report.totals.peakJobs,
+    "",
+    "",
   ]);
   totalRow.font = { bold: true };
 

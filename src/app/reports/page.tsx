@@ -5,10 +5,16 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Reports · HCEDP Tracker" };
 
 export default async function ReportsPage() {
-  const communities = await prisma.community.findMany({
-    orderBy: { order: "asc" },
-    select: { id: true, name: true },
-  });
+  const [communities, providers] = await Promise.all([
+    prisma.community.findMany({
+      orderBy: { order: "asc" },
+      select: { id: true, name: true },
+    }),
+    prisma.utilityProvider.findMany({
+      orderBy: [{ type: "asc" }, { order: "asc" }],
+      select: { id: true, name: true, type: true },
+    }),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -19,7 +25,7 @@ export default async function ReportsPage() {
           export to PDF or Excel.
         </p>
       </div>
-      <ReportsView communities={communities} />
+      <ReportsView communities={communities} providers={providers} />
     </div>
   );
 }

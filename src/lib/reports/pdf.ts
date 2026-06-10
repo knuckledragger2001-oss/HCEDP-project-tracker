@@ -8,6 +8,7 @@ import type {
 } from "pdfmake/interfaces";
 import {
   type CityActivityReport,
+  type LeadSourceReport,
   type QuarterlyReport,
   type ReportFilterLabels,
 } from "@/lib/reports/data";
@@ -148,6 +149,85 @@ export async function cityActivityPdf(
 
   return toBuffer({
     pageMargins: [40, 40, 40, 40],
+    content,
+    styles,
+    defaultStyle: { font: "Roboto", fontSize: 9 },
+  });
+}
+
+export async function leadSourcePdf(
+  report: LeadSourceReport,
+): Promise<Buffer> {
+  const pct = (v: number | null) =>
+    v == null ? "—" : `${Math.round(v * 100)}%`;
+  const days = (v: number | null) => (v == null ? "—" : `${Math.round(v)}`);
+  const acre = (v: number | null) => (v == null ? "—" : `${Math.round(v)}`);
+  const cell = (text: string, total = false): TableCell => ({
+    text,
+    style: total ? undefined : "td",
+    alignment: "right",
+    bold: total ? true : undefined,
+    fontSize: total ? 8 : undefined,
+  });
+
+  const body: TableCell[][] = [
+    [
+      { text: "Lead Source", style: "th" },
+      { text: "Projects", style: "th", alignment: "right" },
+      { text: "Won", style: "th", alignment: "right" },
+      { text: "Lost", style: "th", alignment: "right" },
+      { text: "Active", style: "th", alignment: "right" },
+      { text: "Win Rate", style: "th", alignment: "right" },
+      { text: "Avg Days", style: "th", alignment: "right" },
+      { text: "Peak Jobs", style: "th", alignment: "right" },
+      { text: "Avg Acres", style: "th", alignment: "right" },
+      { text: "Industries", style: "th", alignment: "right" },
+    ],
+    ...report.rows.map((r): TableCell[] => [
+      { text: r.leadSourceLabel, style: "td" },
+      cell(String(r.projects)),
+      cell(String(r.won)),
+      cell(String(r.lost)),
+      cell(String(r.active)),
+      cell(pct(r.successRate)),
+      cell(days(r.avgDaysToSubmit)),
+      cell(String(r.peakJobs)),
+      cell(acre(r.avgAcreage)),
+      cell(String(r.industries)),
+    ]),
+    [
+      { text: "Total", bold: true, fontSize: 8 },
+      cell(String(report.totals.projects), true),
+      cell(String(report.totals.won), true),
+      cell(String(report.totals.lost), true),
+      cell(String(report.totals.active), true),
+      cell("", true),
+      cell("", true),
+      cell(String(report.totals.peakJobs), true),
+      cell("", true),
+      cell("", true),
+    ],
+  ];
+
+  const content: Content[] = [
+    ...header("Lead Source Summary", report.filters),
+  ];
+  if (report.rows.length === 0) {
+    content.push({ text: "No projects match these filters.", style: "empty" });
+  } else {
+    content.push({
+      table: {
+        headerRows: 1,
+        widths: ["*", "auto", "auto", "auto", "auto", "auto", "auto", "auto", "auto", "auto"],
+        body,
+      },
+      layout: "lightHorizontalLines",
+    });
+  }
+
+  return toBuffer({
+    pageMargins: [30, 40, 30, 40],
+    pageOrientation: "landscape",
     content,
     styles,
     defaultStyle: { font: "Roboto", fontSize: 9 },

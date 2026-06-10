@@ -6,9 +6,11 @@ import {
   STAGE_LABELS,
   SUBMISSION_STATUS_LABELS,
   formatDate,
+  formatNumber,
 } from "@/lib/format";
 import type {
   CityActivityReport,
+  LeadSourceReport,
   QuarterlyReport,
 } from "@/lib/reports/data";
 
@@ -16,8 +18,13 @@ interface CommunityLite {
   id: string;
   name: string;
 }
+interface ProviderLite {
+  id: string;
+  name: string;
+  type: string;
+}
 
-type ReportKind = "city-activity" | "quarterly";
+type ReportKind = "city-activity" | "quarterly" | "lead-source";
 
 function quarterOptions(): string[] {
   const now = new Date();
@@ -37,13 +44,20 @@ function quarterOptions(): string[] {
 
 export default function ReportsView({
   communities,
+  providers,
 }: {
   communities: CommunityLite[];
+  providers: ProviderLite[];
 }) {
+  const electricProviders = providers.filter((p) => p.type === "ELECTRIC");
+  const waterProviders = providers.filter((p) => p.type === "WATER");
+
   const [kind, setKind] = useState<ReportKind>("city-activity");
   const [communityId, setCommunityId] = useState("");
   const [naics, setNaics] = useState("");
   const [stage, setStage] = useState("");
+  const [electricProviderId, setElectricProviderId] = useState("");
+  const [waterProviderId, setWaterProviderId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [quarter, setQuarter] = useState("");
@@ -52,12 +66,18 @@ export default function ReportsView({
   const [error, setError] = useState<string | null>(null);
   const [city, setCity] = useState<CityActivityReport | null>(null);
   const [quarterly, setQuarterly] = useState<QuarterlyReport | null>(null);
+  const [leadSource, setLeadSource] = useState<LeadSourceReport | null>(null);
 
-  const endpoint = kind === "city-activity" ? "city-activity" : "quarterly";
+  // Lead Source is project-level, so community/provider filters do not apply.
+  const submissionScoped = kind !== "lead-source";
 
   const query = useMemo(() => {
     const p = new URLSearchParams();
-    if (communityId) p.set("communityId", communityId);
+    if (submissionScoped && communityId) p.set("communityId", communityId);
+    if (submissionScoped && electricProviderId)
+      p.set("electricProviderId", electricProviderId);
+    if (submissionScoped && waterProviderId)
+      p.set("waterProviderId", waterProviderId);
     if (naics) p.set("naics", naics);
     if (stage) p.set("stage", stage);
     if (quarter) {
@@ -67,22 +87,28 @@ export default function ReportsView({
       if (to) p.set("to", to);
     }
     return p;
-  }, [communityId, naics, stage, quarter, from, to]);
+  }, [
+    submissionScoped,
+    communityId,
+    electricProviderId,
+    waterProviderId,
+    naics,
+    stage,
+    quarter,
+    from,
+    to,
+  ]);
 
   async function run() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/reports/${endpoint}?${query.toString()}`);
+      const res = await fetch(`/api/reports/${kind}?${query.toString()}`);
       if (!res.ok) throw new Error("Failed to run report");
       const json = await res.json();
-      if (kind === "city-activity") {
-        setCity(json);
-        setQuarterly(null);
-      } else {
-        setQuarterly(json);
-        setCity(null);
-      }
+      setCity(kind === "city-activity" ? json : null);
+      setQuarterly(kind === "quarterly" ? json : null);
+      setLeadSource(kind === "lead-source" ? json : null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -93,44 +119,78 @@ export default function ReportsView({
   function exportUrl(format: "pdf" | "xlsx") {
     const p = new URLSearchParams(query);
     p.set("format", format);
-    return `/api/reports/${endpoint}?${p.toString()}`;
+    return `/api/reports/${kind}?${p.toString()}`;
   }
 
   const hasResult =
     (kind === "city-activity" && city) ||
-    (kind === "quarterly" && quarterly);
+    (kind === "quarterly" && quarterly) ||
+    (kind === "lead-source" && leadSource);
+
+  const tab = (k: ReportKind, label: string) => (
+    <button
+      className={kind === k ? "btn-primary" : "btn-secondary"}
+      onClick={() => setKind(k)}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <div className="space-y-4">
       {/* Controls */}
       <div className="card space-y-3 p-4">
         <div className="flex flex-wrap gap-2">
-          <button
-            className={kind === "city-activity" ? "btn-primary" : "btn-secondary"}
-            onClick={() => setKind("city-activity")}
-          >
-            City Activity
-          </button>
-          <button
-            className={kind === "quarterly" ? "btn-primary" : "btn-secondary"}
-            onClick={() => setKind("quarterly")}
-          >
-            Quarterly Summary
-          </button>
+          {tab("city-activity", "City Activity")}
+          {tab("quarterly", "Quarterly Summary")}
+          {tab("lead-source", "Lead Source")}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-4">
           <div>
             <label className="label">Community</label>
             <select
               className="input"
               value={communityId}
+              disabled={!submissionScoped}
               onChange={(e) => setCommunityId(e.target.value)}
             >
               <option value="">All communities</option>
               {communities.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Electric provider</label>
+            <select
+              className="input"
+              value={electricProviderId}
+              disabled={!submissionScoped}
+              onChange={(e) => setElectricProviderId(e.target.value)}
+            >
+              <option value="">All</option>
+              {electricProviders.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Water provider</label>
+            <select
+              className="input"
+              value={waterProviderId}
+              disabled={!submissionScoped}
+              onChange={(e) => setWaterProviderId(e.target.value)}
+            >
+              <option value="">All</option>
+              {waterProviders.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
                 </option>
               ))}
             </select>
@@ -195,6 +255,12 @@ export default function ReportsView({
             />
           </div>
         </div>
+        {kind === "lead-source" && (
+          <p className="text-xs text-gray-400">
+            Lead Source is a project-level report; the date filter applies to RFI
+            receipt date. Community and provider filters do not apply.
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
           <button className="btn-primary" onClick={run} disabled={loading}>
@@ -221,16 +287,36 @@ export default function ReportsView({
       {kind === "quarterly" && quarterly && (
         <QuarterlyResult report={quarterly} />
       )}
+      {kind === "lead-source" && leadSource && (
+        <LeadSourceResult report={leadSource} />
+      )}
     </div>
   );
 }
 
-function FilterEcho({ f }: { f: { community: string; period: string; naics: string; stage: string } }) {
+function FilterEcho({
+  f,
+}: {
+  f: {
+    community: string;
+    period: string;
+    naics: string;
+    stage: string;
+    electricProvider?: string;
+    waterProvider?: string;
+  };
+}) {
   return (
     <p className="text-xs text-gray-500">
       {f.community} · {f.period} · NAICS {f.naics} · Stage {f.stage}
+      {f.electricProvider ? ` · Electric: ${f.electricProvider}` : ""}
+      {f.waterProvider ? ` · Water: ${f.waterProvider}` : ""}
     </p>
   );
+}
+
+function pct(v: number | null): string {
+  return v == null ? "—" : `${Math.round(v * 100)}%`;
 }
 
 function CityActivityResult({ report }: { report: CityActivityReport }) {
@@ -354,6 +440,98 @@ function QuarterlyResult({ report }: { report: QuarterlyReport }) {
               </tr>
             </tbody>
           </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LeadSourceResult({ report }: { report: LeadSourceReport }) {
+  return (
+    <div className="space-y-3">
+      <FilterEcho f={report.filters} />
+      <div className="card p-4">
+        {report.rows.length === 0 ? (
+          <p className="text-sm text-gray-400">
+            No projects match these filters.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-400">
+                  <th className="py-1 pr-3">Lead source</th>
+                  <th className="py-1 px-2 text-right">Projects</th>
+                  <th className="py-1 px-2 text-right">Won</th>
+                  <th className="py-1 px-2 text-right">Lost</th>
+                  <th className="py-1 px-2 text-right">Active</th>
+                  <th className="py-1 px-2 text-right">Win rate</th>
+                  <th className="py-1 px-2 text-right">Avg days to submit</th>
+                  <th className="py-1 px-2 text-right">Peak jobs</th>
+                  <th className="py-1 px-2 text-right">Avg acres</th>
+                  <th className="py-1 px-2 text-right">Industries</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.rows.map((r) => (
+                  <tr key={r.leadSource} className="border-t border-gray-100">
+                    <td className="py-1 pr-3 font-medium text-gray-900">
+                      {r.leadSourceLabel}
+                    </td>
+                    <td className="py-1 px-2 text-right text-gray-600">
+                      {r.projects}
+                    </td>
+                    <td className="py-1 px-2 text-right text-green-700">
+                      {r.won}
+                    </td>
+                    <td className="py-1 px-2 text-right text-red-600">{r.lost}</td>
+                    <td className="py-1 px-2 text-right text-gray-600">
+                      {r.active}
+                    </td>
+                    <td className="py-1 px-2 text-right text-gray-900">
+                      {pct(r.successRate)}
+                    </td>
+                    <td className="py-1 px-2 text-right text-gray-600">
+                      {r.avgDaysToSubmit == null
+                        ? "—"
+                        : Math.round(r.avgDaysToSubmit)}
+                    </td>
+                    <td className="py-1 px-2 text-right text-gray-600">
+                      {formatNumber(r.peakJobs)}
+                    </td>
+                    <td className="py-1 px-2 text-right text-gray-600">
+                      {r.avgAcreage == null ? "—" : Math.round(r.avgAcreage)}
+                    </td>
+                    <td className="py-1 px-2 text-right text-gray-600">
+                      {r.industries}
+                    </td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-gray-200 font-semibold">
+                  <td className="py-1 pr-3 text-gray-900">Total</td>
+                  <td className="py-1 px-2 text-right">
+                    {report.totals.projects}
+                  </td>
+                  <td className="py-1 px-2 text-right text-green-700">
+                    {report.totals.won}
+                  </td>
+                  <td className="py-1 px-2 text-right text-red-600">
+                    {report.totals.lost}
+                  </td>
+                  <td className="py-1 px-2 text-right">
+                    {report.totals.active}
+                  </td>
+                  <td className="py-1 px-2 text-right">—</td>
+                  <td className="py-1 px-2 text-right">—</td>
+                  <td className="py-1 px-2 text-right">
+                    {formatNumber(report.totals.peakJobs)}
+                  </td>
+                  <td className="py-1 px-2 text-right">—</td>
+                  <td className="py-1 px-2 text-right">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

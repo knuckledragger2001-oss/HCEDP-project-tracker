@@ -169,3 +169,6 @@ The app is host-agnostic (Vercel, Render, Railway, a container, …). To deploy:
 - Site database sourced from LoopNet and automated site-search matching
 - Authentication, roles, and multi-user support
 - Inbound Outlook task that posts to the same internal intake endpoint
+- Free-form AI reporting: a text box on the Reports page where staff type a
+  plain-language question and the Claude API answers over the project/site data
+  (likely via tool use against read-only queries), beyond the fixed report types

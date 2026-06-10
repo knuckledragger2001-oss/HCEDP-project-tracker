@@ -2,23 +2,82 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { PipelineStageEnum } from "@/lib/projects/schema";
+import { LeadSourceEnum } from "@/lib/anthropic/schema";
 
 export const runtime = "nodejs";
 
 const nullableDate = z.string().nullable().optional();
+const nStr = z.string().nullable().optional();
+const nNum = z.number().nullable().optional();
 
-// Focused update schema for board moves + light field edits.
+// Update schema for board moves, light edits, and the "apply RFI update" flow.
 const UpdateProjectSchema = z.object({
   stage: PipelineStageEnum.optional(),
   stageNote: z.string().optional(),
-  codename: z.string().optional(),
   archived: z.boolean().optional(),
+
+  codename: z.string().optional(),
+  leadSource: LeadSourceEnum.optional(),
+  leadSourceOther: nStr,
+  sourceContactName: nStr,
+  sourceContactEmail: nStr,
+  submissionDestination: nStr,
+  naicsCode: nStr,
+  industryDescription: nStr,
+  narrative: nStr,
+  projectType: nStr,
+  buildingSizeNeeds: nStr,
+  financingNotes: nStr,
+  environmentalNotes: nStr,
+  transportationNotes: nStr,
+  specialServicesNotes: nStr,
+
+  capexTotal: nNum,
+  capexLand: nNum,
+  capexBuilding: nNum,
+  capexEquipment: nNum,
+  avgWage: nNum,
+  minAcreage: nNum,
+  hasFunding: z.boolean().nullable().optional(),
+
+  siteLocationPreferences: z.array(z.string()).optional(),
+  requiredDeliverables: z.array(z.string()).optional(),
+
+  rfiReceivedDate: nullableDate,
   responseSubmittedDate: nullableDate,
   siteVisitDate: nullableDate,
   responseDueDate: nullableDate,
   projectedDecisionDate: nullableDate,
   productionStartDate: nullableDate,
 });
+
+// Scalar string/number/bool fields copied straight through when present.
+const PASSTHROUGH = [
+  "codename",
+  "leadSource",
+  "leadSourceOther",
+  "sourceContactName",
+  "sourceContactEmail",
+  "submissionDestination",
+  "naicsCode",
+  "industryDescription",
+  "narrative",
+  "projectType",
+  "buildingSizeNeeds",
+  "financingNotes",
+  "environmentalNotes",
+  "transportationNotes",
+  "specialServicesNotes",
+  "capexTotal",
+  "capexLand",
+  "capexBuilding",
+  "capexEquipment",
+  "avgWage",
+  "minAcreage",
+  "hasFunding",
+  "siteLocationPreferences",
+  "requiredDeliverables",
+] as const;
 
 function toDate(value: string | null | undefined): Date | null | undefined {
   if (value === undefined) return undefined;
@@ -78,31 +137,40 @@ export async function PATCH(
   const d = parsed.data;
   const stageChanged = d.stage !== undefined && d.stage !== existing.stage;
 
+  // Copy through only the scalar fields that were actually provided.
+  const data: Record<string, unknown> = {};
+  for (const key of PASSTHROUGH) {
+    if (d[key] !== undefined) data[key] = d[key];
+  }
+  if (d.stage !== undefined) data.stage = d.stage;
+  if (d.archived !== undefined) {
+    data.archivedAt = d.archived ? new Date() : null;
+  }
+  // Dates: only set when the key was present in the payload.
+  const dateKeys = [
+    "rfiReceivedDate",
+    "responseSubmittedDate",
+    "siteVisitDate",
+    "responseDueDate",
+    "projectedDecisionDate",
+    "productionStartDate",
+  ] as const;
+  for (const key of dateKeys) {
+    if (d[key] !== undefined) data[key] = toDate(d[key]);
+  }
+  if (stageChanged) {
+    data.stageHistory = {
+      create: {
+        fromStage: existing.stage,
+        toStage: d.stage!,
+        note: d.stageNote ?? null,
+      },
+    };
+  }
+
   const project = await prisma.project.update({
     where: { id },
-    data: {
-      stage: d.stage,
-      codename: d.codename,
-      ...(d.archived !== undefined
-        ? { archivedAt: d.archived ? new Date() : null }
-        : {}),
-      responseSubmittedDate: toDate(d.responseSubmittedDate),
-      siteVisitDate: toDate(d.siteVisitDate),
-      responseDueDate: toDate(d.responseDueDate),
-      projectedDecisionDate: toDate(d.projectedDecisionDate),
-      productionStartDate: toDate(d.productionStartDate),
-      ...(stageChanged
-        ? {
-            stageHistory: {
-              create: {
-                fromStage: existing.stage,
-                toStage: d.stage!,
-                note: d.stageNote ?? null,
-              },
-            },
-          }
-        : {}),
-    },
+    data,
     select: { id: true, stage: true, codename: true },
   });
 

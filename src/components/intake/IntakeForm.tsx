@@ -1,12 +1,18 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   emptyProposal,
   type ParsedProject,
   type StagedAttachment,
 } from "@/lib/anthropic/schema";
 import ReviewForm from "./ReviewForm";
+import UpdateReviewForm from "./UpdateReviewForm";
+
+interface ProjectOption {
+  id: string;
+  codename: string;
+}
 
 interface IntakeResponse {
   proposal: ParsedProject;
@@ -24,6 +30,31 @@ export default function IntakeForm() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<IntakeResponse | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // Update-an-existing-project mode.
+  const [updateMode, setUpdateMode] = useState(false);
+  const [projectOptions, setProjectOptions] = useState<ProjectOption[]>([]);
+  const [updateTargetId, setUpdateTargetId] = useState("");
+
+  useEffect(() => {
+    if (!updateMode || projectOptions.length > 0) return;
+    (async () => {
+      try {
+        const res = await fetch("/api/projects");
+        const json = await res.json();
+        const opts: ProjectOption[] = (json.projects ?? []).map(
+          (p: { id: string; codename: string }) => ({
+            id: p.id,
+            codename: p.codename,
+          }),
+        );
+        setProjectOptions(opts);
+        if (opts.length > 0 && !updateTargetId) setUpdateTargetId(opts[0].id);
+      } catch {
+        // Non-fatal — the picker just stays empty.
+      }
+    })();
+  }, [updateMode, projectOptions.length, updateTargetId]);
 
   async function submit() {
     setLoading(true);
@@ -60,6 +91,12 @@ export default function IntakeForm() {
     });
   }
 
+  if (result && updateMode && updateTargetId) {
+    return (
+      <UpdateReviewForm projectId={updateTargetId} proposal={result.proposal} />
+    );
+  }
+
   if (result) {
     return (
       <ReviewForm
@@ -92,6 +129,40 @@ export default function IntakeForm() {
           {error}
         </div>
       )}
+
+      <div className="card p-4">
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+          <input
+            type="checkbox"
+            checked={updateMode}
+            onChange={(e) => setUpdateMode(e.target.checked)}
+          />
+          This is updated information for an existing project
+        </label>
+        {updateMode && (
+          <div className="mt-3">
+            <span className="label">Project to update</span>
+            <select
+              className="input max-w-md"
+              value={updateTargetId}
+              onChange={(e) => setUpdateTargetId(e.target.value)}
+            >
+              {projectOptions.length === 0 && (
+                <option value="">No projects yet</option>
+              )}
+              {projectOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.codename}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs text-gray-500">
+              After parsing, you&apos;ll review each changed field and choose what
+              to apply. The original is not modified until you confirm.
+            </p>
+          </div>
+        )}
+      </div>
 
       <div className="card p-4 space-y-3">
         <label className="block">

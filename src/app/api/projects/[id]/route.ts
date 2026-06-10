@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { PipelineStageEnum } from "@/lib/projects/schema";
-import { LeadSourceEnum } from "@/lib/anthropic/schema";
+import {
+  LeadSourceEnum,
+  JobPhaseSchema,
+  CriticalCriterionSchema,
+  QualitativeNoteSchema,
+  UtilityRequirementSchema,
+} from "@/lib/anthropic/schema";
 
 export const runtime = "nodejs";
 
@@ -42,6 +48,12 @@ const UpdateProjectSchema = z.object({
 
   siteLocationPreferences: z.array(z.string()).optional(),
   requiredDeliverables: z.array(z.string()).optional(),
+
+  // Relational collections — when present, replace the whole set.
+  jobPhases: z.array(JobPhaseSchema).optional(),
+  criticalCriteria: z.array(CriticalCriterionSchema).optional(),
+  qualitativeNotes: z.array(QualitativeNoteSchema).optional(),
+  utilities: z.array(UtilityRequirementSchema).optional(),
 
   rfiReceivedDate: nullableDate,
   responseSubmittedDate: nullableDate,
@@ -165,6 +177,64 @@ export async function PATCH(
         toStage: d.stage!,
         note: d.stageNote ?? null,
       },
+    };
+  }
+
+  // Relational collections: replace the whole set when provided.
+  if (d.jobPhases !== undefined) {
+    data.jobPhases = {
+      deleteMany: {},
+      create: d.jobPhases.map((j, i) => ({
+        count: j.count,
+        timeframe: j.timeframe,
+        orderIndex: i,
+      })),
+    };
+  }
+  if (d.criticalCriteria !== undefined) {
+    data.criticalCriteria = {
+      deleteMany: {},
+      create: d.criticalCriteria.map((c, i) => ({
+        rank: c.rank ?? i + 1,
+        text: c.text,
+      })),
+    };
+  }
+  if (d.qualitativeNotes !== undefined) {
+    data.qualitativeNotes = {
+      deleteMany: {},
+      create: d.qualitativeNotes.map((q) => ({
+        label: q.label,
+        content: q.content,
+      })),
+    };
+  }
+  if (d.utilities !== undefined) {
+    data.utilities = {
+      deleteMany: {},
+      create: d.utilities.map((u) => ({
+        type: u.type,
+        normalizedValue: u.normalizedValue ?? null,
+        normalizedUnit: u.normalizedUnit ?? null,
+        rawValue: u.rawValue ?? null,
+        purpose: u.purpose ?? null,
+        alternatives: u.alternatives ?? null,
+        notes: u.notes ?? null,
+        flagged: u.flagged ?? false,
+        assumptionNote: u.assumptionNote ?? null,
+        datapoints: {
+          create: (u.datapoints ?? []).map((dp) => ({
+            kind: dp.kind ?? null,
+            label: dp.label ?? null,
+            value: dp.value ?? null,
+            unit: dp.unit ?? null,
+            date: toDate(dp.date),
+            rawValue: dp.rawValue ?? null,
+            flagged: dp.flagged ?? false,
+            assumptionNote: dp.assumptionNote ?? null,
+          })),
+        },
+      })),
     };
   }
 

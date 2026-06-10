@@ -1,7 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { ParsedProject, StagedAttachment } from "@/lib/anthropic/schema";
+import {
+  emptyProposal,
+  type ParsedProject,
+  type StagedAttachment,
+} from "@/lib/anthropic/schema";
 import ReviewForm from "./ReviewForm";
 
 interface IntakeResponse {
@@ -44,6 +48,18 @@ export default function IntakeForm() {
     }
   }
 
+  // Skip parsing entirely — open a blank, editable form for leads that did not
+  // arrive by email (phone, referral, event, etc.).
+  function enterManually() {
+    setResult({
+      proposal: emptyProposal(emailText),
+      attachments: [],
+      rawEmailText: emailText,
+      model: null,
+      parserAvailable: false,
+    });
+  }
+
   if (result) {
     return (
       <ReviewForm
@@ -58,12 +74,17 @@ export default function IntakeForm() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">New RFI intake</h1>
-        <p className="text-sm text-gray-500">
-          Paste the full RFI email and attach any supplemental files. Claude
-          extracts the fields; you review and edit before anything is saved.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">New RFI intake</h1>
+          <p className="text-sm text-gray-500">
+            Paste the full RFI email and attach any supplemental files. Claude
+            extracts the fields; you review and edit before anything is saved.
+          </p>
+        </div>
+        <button className="btn-secondary whitespace-nowrap" onClick={enterManually}>
+          Enter manually (no email)
+        </button>
       </div>
 
       {error && (

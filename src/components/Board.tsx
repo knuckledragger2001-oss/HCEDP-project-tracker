@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   DndContext,
@@ -24,8 +24,33 @@ export interface BoardProject {
   industryDescription: string | null;
   minAcreage: number | null;
   capexTotal: string | null;
+  rfiReceivedDate: string | null;
   responseDueDate: string | null;
+  archived: boolean;
   submissionCount: number;
+}
+
+type DateMode = "all" | "month" | "quarter" | "fy";
+type ArchiveMode = "active" | "archived" | "all";
+
+// Earliest receipt date that still counts as "this period".
+function periodStart(mode: DateMode): Date | null {
+  const now = new Date();
+  switch (mode) {
+    case "month":
+      return new Date(now.getFullYear(), now.getMonth(), 1);
+    case "quarter": {
+      const qStartMonth = Math.floor(now.getMonth() / 3) * 3;
+      return new Date(now.getFullYear(), qStartMonth, 1);
+    }
+    case "fy":
+      // Fiscal year runs Oct 1 – Sep 30.
+      return now.getMonth() >= 9
+        ? new Date(now.getFullYear(), 9, 1)
+        : new Date(now.getFullYear() - 1, 9, 1);
+    default:
+      return null;
+  }
 }
 
 function Card({ project }: { project: BoardProject }) {
@@ -33,14 +58,11 @@ function Card({ project }: { project: BoardProject }) {
     id: project.id,
   });
   return (
-    <div
-      ref={setNodeRef}
-      className={`card p-3 ${isDragging ? "opacity-30" : ""}`}
-    >
-      <div className="flex items-start justify-between gap-2">
+    <div ref={setNodeRef} className={`card p-2 ${isDragging ? "opacity-30" : ""}`}>
+      <div className="flex items-start justify-between gap-1">
         <Link
           href={`/projects/${project.id}`}
-          className="font-medium text-gray-900 hover:text-brand hover:underline"
+          className="text-sm font-medium leading-tight text-gray-900 hover:text-brand hover:underline"
         >
           {project.codename}
         </Link>
@@ -54,10 +76,10 @@ function Card({ project }: { project: BoardProject }) {
           ⠿
         </button>
       </div>
-      <div className="mt-1 space-y-0.5 text-xs text-gray-500">
+      <div className="mt-1 space-y-0.5 text-[11px] leading-tight text-gray-500">
         {project.naicsCode && <div>NAICS {project.naicsCode}</div>}
         <div>
-          {project.minAcreage ? `${project.minAcreage} ac min` : "— ac"} ·{" "}
+          {project.minAcreage ? `${project.minAcreage} ac` : "— ac"} ·{" "}
           {formatCurrency(project.capexTotal)}
         </div>
         {project.responseDueDate && (
@@ -66,7 +88,7 @@ function Card({ project }: { project: BoardProject }) {
         {project.submissionCount > 0 && (
           <div className="text-brand">
             {project.submissionCount} site
-            {project.submissionCount === 1 ? "" : "s"} submitted
+            {project.submissionCount === 1 ? "" : "s"}
           </div>
         )}
       </div>
@@ -78,49 +100,29 @@ function Column({
   stage,
   label,
   projects,
-  onSelectStage,
 }: {
   stage: PipelineStageValue;
   label: string;
   projects: BoardProject[];
-  onSelectStage: (projectId: string, stage: PipelineStageValue) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   return (
-    <div className="flex w-72 shrink-0 flex-col">
-      <div className="mb-2 flex items-center justify-between px-1">
-        <span className="text-sm font-semibold text-gray-700">{label}</span>
-        <span className="badge bg-gray-100 text-gray-600">
-          {projects.length}
-        </span>
+    <div className="flex flex-col">
+      <div className="mb-1 flex items-center justify-between px-1">
+        <span className="text-xs font-semibold text-gray-700">{label}</span>
+        <span className="badge bg-gray-100 text-gray-600">{projects.length}</span>
       </div>
       <div
         ref={setNodeRef}
-        className={`flex min-h-32 flex-1 flex-col gap-2 rounded-lg p-2 transition-colors ${
+        className={`flex min-h-24 flex-1 flex-col gap-1.5 rounded-lg p-1.5 transition-colors ${
           isOver ? "bg-brand/10" : "bg-gray-100/60"
         }`}
       >
         {projects.map((p) => (
-          <div key={p.id}>
-            <Card project={p} />
-            <select
-              value={p.stage}
-              onChange={(e) =>
-                onSelectStage(p.id, e.target.value as PipelineStageValue)
-              }
-              className="mt-1 w-full rounded border border-gray-200 bg-white px-1 py-1 text-xs text-gray-600"
-              aria-label="Change stage"
-            >
-              {PIPELINE_STAGES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Card key={p.id} project={p} />
         ))}
         {projects.length === 0 && (
-          <p className="px-1 py-4 text-center text-xs text-gray-400">Empty</p>
+          <p className="px-1 py-3 text-center text-[11px] text-gray-400">Empty</p>
         )}
       </div>
     </div>
@@ -134,15 +136,28 @@ export default function Board({
 }) {
   const [projects, setProjects] = useState(initialProjects);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [dateMode, setDateMode] = useState<DateMode>("all");
+  const [archiveMode, setArchiveMode] = useState<ArchiveMode>("active");
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
 
+  const visible = useMemo(() => {
+    const start = periodStart(dateMode);
+    return projects.filter((p) => {
+      if (archiveMode === "active" && p.archived) return false;
+      if (archiveMode === "archived" && !p.archived) return false;
+      if (start) {
+        if (!p.rfiReceivedDate) return false;
+        if (new Date(p.rfiReceivedDate) < start) return false;
+      }
+      return true;
+    });
+  }, [projects, dateMode, archiveMode]);
+
   async function moveProject(id: string, stage: PipelineStageValue) {
     const prev = projects;
-    setProjects((cur) =>
-      cur.map((p) => (p.id === id ? { ...p, stage } : p)),
-    );
+    setProjects((cur) => cur.map((p) => (p.id === id ? { ...p, stage } : p)));
     try {
       const res = await fetch(`/api/projects/${id}`, {
         method: "PATCH",
@@ -151,7 +166,7 @@ export default function Board({
       });
       if (!res.ok) throw new Error("Failed");
     } catch {
-      setProjects(prev); // rollback
+      setProjects(prev);
       alert("Could not update stage. Please try again.");
     }
   }
@@ -173,33 +188,61 @@ export default function Board({
   const active = projects.find((p) => p.id === activeId) ?? null;
 
   return (
-    <DndContext
-      sensors={sensors}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-    >
-      <div className="flex gap-3 overflow-x-auto pb-4">
-        {PIPELINE_STAGES.map((s) => (
-          <Column
-            key={s.value}
-            stage={s.value}
-            label={s.label}
-            projects={projects.filter((p) => p.stage === s.value)}
-            onSelectStage={moveProject}
-          />
-        ))}
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <label className="flex items-center gap-1.5 text-gray-600">
+          <span className="text-xs font-medium text-gray-500">Received</span>
+          <select
+            className="input h-8 w-auto py-1 text-xs"
+            value={dateMode}
+            onChange={(e) => setDateMode(e.target.value as DateMode)}
+          >
+            <option value="all">All time</option>
+            <option value="month">This month</option>
+            <option value="quarter">This quarter</option>
+            <option value="fy">This fiscal year (Oct–Sep)</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-1.5 text-gray-600">
+          <span className="text-xs font-medium text-gray-500">Show</span>
+          <select
+            className="input h-8 w-auto py-1 text-xs"
+            value={archiveMode}
+            onChange={(e) => setArchiveMode(e.target.value as ArchiveMode)}
+          >
+            <option value="active">Active</option>
+            <option value="archived">Archived</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+        <span className="text-xs text-gray-400">
+          {visible.length} project{visible.length === 1 ? "" : "s"}
+        </span>
       </div>
-      <DragOverlay>
-        {active ? (
-          <div className="w-64">
-            <div className="card p-3 shadow-lg">
-              <span className={`badge ${stageBadgeClass(active.stage)}`}>
-                {active.codename}
-              </span>
+
+      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+          {PIPELINE_STAGES.map((s) => (
+            <Column
+              key={s.value}
+              stage={s.value}
+              label={s.label}
+              projects={visible.filter((p) => p.stage === s.value)}
+            />
+          ))}
+        </div>
+        <DragOverlay>
+          {active ? (
+            <div className="w-48">
+              <div className="card p-2 shadow-lg">
+                <span className={`badge ${stageBadgeClass(active.stage)}`}>
+                  {active.codename}
+                </span>
+              </div>
             </div>
-          </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    </div>
   );
 }

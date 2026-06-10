@@ -29,10 +29,11 @@ function submissionWhere(f: ReportFilters): Prisma.SubmissionWhereInput {
   if (f.communityId) {
     where.site = { communityId: f.communityId };
   }
-  const projectWhere: Prisma.ProjectWhereInput = {};
+  // Archived projects are excluded from all reporting.
+  const projectWhere: Prisma.ProjectWhereInput = { archivedAt: null };
   if (f.naicsCode) projectWhere.naicsCode = f.naicsCode;
   if (f.stage) projectWhere.stage = f.stage as Prisma.ProjectWhereInput["stage"];
-  if (Object.keys(projectWhere).length > 0) where.project = projectWhere;
+  where.project = projectWhere;
 
   return where;
 }

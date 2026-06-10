@@ -12,6 +12,7 @@ const UpdateProjectSchema = z.object({
   stage: PipelineStageEnum.optional(),
   stageNote: z.string().optional(),
   codename: z.string().optional(),
+  archived: z.boolean().optional(),
   responseSubmittedDate: nullableDate,
   siteVisitDate: nullableDate,
   responseDueDate: nullableDate,
@@ -82,6 +83,9 @@ export async function PATCH(
     data: {
       stage: d.stage,
       codename: d.codename,
+      ...(d.archived !== undefined
+        ? { archivedAt: d.archived ? new Date() : null }
+        : {}),
       responseSubmittedDate: toDate(d.responseSubmittedDate),
       siteVisitDate: toDate(d.siteVisitDate),
       responseDueDate: toDate(d.responseDueDate),

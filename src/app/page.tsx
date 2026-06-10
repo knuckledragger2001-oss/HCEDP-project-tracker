@@ -15,7 +15,9 @@ export default async function BoardPage() {
       industryDescription: true,
       minAcreage: true,
       capexTotal: true,
+      rfiReceivedDate: true,
       responseDueDate: true,
+      archivedAt: true,
       _count: { select: { submissions: true } },
     },
   });
@@ -29,7 +31,9 @@ export default async function BoardPage() {
     industryDescription: p.industryDescription,
     minAcreage: p.minAcreage,
     capexTotal: p.capexTotal ? p.capexTotal.toString() : null,
+    rfiReceivedDate: p.rfiReceivedDate ? p.rfiReceivedDate.toISOString() : null,
     responseDueDate: p.responseDueDate ? p.responseDueDate.toISOString() : null,
+    archived: p.archivedAt != null,
     submissionCount: p._count.submissions,
   }));
 
@@ -39,8 +43,7 @@ export default async function BoardPage() {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Pipeline</h1>
           <p className="text-sm text-gray-500">
-            {projects.length} project{projects.length === 1 ? "" : "s"}. Drag a
-            card or use its dropdown to change stage.
+            Drag a card between columns to change stage.
           </p>
         </div>
         <Link href="/intake" className="btn-primary">

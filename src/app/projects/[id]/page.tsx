@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import ProjectStageSelect from "@/components/ProjectStageSelect";
+import StageProgress from "@/components/StageProgress";
+import ProjectActions from "@/components/ProjectActions";
 import SubmissionsPanel, {
   type SubmissionLite,
 } from "@/components/SubmissionsPanel";
@@ -73,13 +74,20 @@ export default async function ProjectDetailPage({
         <Link href="/" className="text-sm text-gray-500 hover:underline">
           ← Back to board
         </Link>
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+        {project.archivedAt && (
+          <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            This project is archived — hidden from the board and reports. Use
+            Unarchive to restore it.
+          </div>
+        )}
+        <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
           <h1 className="text-2xl font-semibold text-gray-900">
             {project.codename}
           </h1>
-          <ProjectStageSelect
+          <ProjectActions
             projectId={project.id}
-            stage={project.stage as PipelineStageValue}
+            codename={project.codename}
+            archived={project.archivedAt != null}
           />
         </div>
         <p className="text-sm text-gray-500">
@@ -87,6 +95,12 @@ export default async function ProjectDetailPage({
           {project.naicsCode ? ` · NAICS ${project.naicsCode}` : ""}
           {project.projectType ? ` · ${project.projectType}` : ""}
         </p>
+        <div className="mt-3">
+          <StageProgress
+            projectId={project.id}
+            stage={project.stage as PipelineStageValue}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

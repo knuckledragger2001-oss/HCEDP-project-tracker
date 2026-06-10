@@ -21,6 +21,16 @@ export const LEAD_SOURCE_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
+export const REAL_ESTATE_TYPE_LABELS: Record<string, string> = {
+  INDUSTRIAL_GREENFIELD: "Industrial Greenfield",
+  BROWNFIELD: "Brownfield",
+  SPEC_INDUSTRIAL: "Spec Industrial",
+  MIXED_USE: "Mixed Use",
+  OFFICE: "Office",
+};
+
+export const REAL_ESTATE_TYPES = Object.keys(REAL_ESTATE_TYPE_LABELS);
+
 export function stageBadgeClass(stage: PipelineStageValue | string): string {
   switch (stage) {
     case "RFI_RECEIVED":

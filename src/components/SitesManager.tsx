@@ -1,11 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { formatNumber } from "@/lib/format";
+import {
+  formatNumber,
+  REAL_ESTATE_TYPE_LABELS,
+  REAL_ESTATE_TYPES,
+} from "@/lib/format";
 
 interface CommunityLite {
   id: string;
   name: string;
+}
+interface ProviderLite {
+  id: string;
+  name: string;
+  type: string; // "ELECTRIC" | "WATER"
 }
 interface SiteRow {
   id: string;
@@ -13,28 +22,114 @@ interface SiteRow {
   communityId: string;
   acreage: number | null;
   address: string | null;
+  realEstateType: string | null;
+  currentElectricMw: number | null;
+  projectedElectricMw: number | null;
+  electricProviderId: string | null;
+  electricProviderName: string | null;
+  waterProviderId: string | null;
+  waterProviderName: string | null;
   submissionCount: number;
 }
 
 export default function SitesManager({
   communities: initialCommunities,
+  providers: initialProviders,
   initialSites,
 }: {
   communities: CommunityLite[];
+  providers: ProviderLite[];
   initialSites: SiteRow[];
 }) {
   const [communities, setCommunities] = useState(initialCommunities);
+  const [providers, setProviders] = useState(initialProviders);
   const [sites, setSites] = useState(initialSites);
+
+  const electricProviders = providers.filter((p) => p.type === "ELECTRIC");
+  const waterProviders = providers.filter((p) => p.type === "WATER");
+
+  // --- site form state ---
   const [name, setName] = useState("");
   const [communityId, setCommunityId] = useState(initialCommunities[0]?.id ?? "");
   const [acreage, setAcreage] = useState("");
   const [address, setAddress] = useState("");
+  const [realEstateType, setRealEstateType] = useState("");
+  const [currentMw, setCurrentMw] = useState("");
+  const [projectedMw, setProjectedMw] = useState("");
+  const [electricProviderId, setElectricProviderId] = useState("");
+  const [waterProviderId, setWaterProviderId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // --- community form state ---
   const [newCommunity, setNewCommunity] = useState("");
   const [communityBusy, setCommunityBusy] = useState(false);
   const [communityError, setCommunityError] = useState<string | null>(null);
+
+  // --- provider form state ---
+  const [newProvider, setNewProvider] = useState("");
+  const [newProviderType, setNewProviderType] = useState("ELECTRIC");
+  const [providerBusy, setProviderBusy] = useState(false);
+  const [providerError, setProviderError] = useState<string | null>(null);
+
+  async function addSite() {
+    if (!name.trim()) {
+      setError("Site name is required.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/sites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          communityId,
+          acreage: acreage ? Number(acreage) : null,
+          address: address || null,
+          realEstateType: realEstateType || null,
+          currentElectricMw: currentMw ? Number(currentMw) : null,
+          projectedElectricMw: projectedMw ? Number(projectedMw) : null,
+          electricProviderId: electricProviderId || null,
+          waterProviderId: waterProviderId || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to create site");
+      const s = json.site;
+      setSites((cur) => [
+        ...cur,
+        {
+          id: s.id,
+          name: s.name,
+          communityId: s.communityId,
+          acreage: s.acreage,
+          address: s.address,
+          realEstateType: s.realEstateType,
+          currentElectricMw: s.currentElectricMw,
+          projectedElectricMw: s.projectedElectricMw,
+          electricProviderId: s.electricProviderId,
+          electricProviderName: s.electricProvider?.name ?? null,
+          waterProviderId: s.waterProviderId,
+          waterProviderName: s.waterProvider?.name ?? null,
+          submissionCount: 0,
+        },
+      ]);
+      setName("");
+      setAcreage("");
+      setAddress("");
+      setRealEstateType("");
+      setCurrentMw("");
+      setProjectedMw("");
+      setElectricProviderId("");
+      setWaterProviderId("");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function addCommunity() {
     if (!newCommunity.trim()) {
@@ -53,7 +148,6 @@ export default function SitesManager({
       if (!res.ok) throw new Error(json.error ?? "Failed to add community");
       const added = { id: json.community.id, name: json.community.name };
       setCommunities((cur) => [...cur, added]);
-      // Select the new community for the next site, and clear the input.
       setCommunityId(added.id);
       setNewCommunity("");
     } catch (e) {
@@ -63,117 +157,212 @@ export default function SitesManager({
     }
   }
 
-  async function addSite() {
-    if (!name.trim()) {
-      setError("Site name is required.");
+  async function addProvider() {
+    if (!newProvider.trim()) {
+      setProviderError("Provider name is required.");
       return;
     }
-    setBusy(true);
-    setError(null);
+    setProviderBusy(true);
+    setProviderError(null);
     try {
-      const res = await fetch("/api/sites", {
+      const res = await fetch("/api/providers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          communityId,
-          acreage: acreage ? Number(acreage) : null,
-          address: address || null,
-        }),
+        body: JSON.stringify({ name: newProvider, type: newProviderType }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Failed to create site");
-      setSites((cur) => [
+      if (!res.ok) throw new Error(json.error ?? "Failed to add provider");
+      setProviders((cur) => [
         ...cur,
-        {
-          id: json.site.id,
-          name: json.site.name,
-          communityId: json.site.communityId,
-          acreage: json.site.acreage,
-          address: json.site.address,
-          submissionCount: 0,
-        },
+        { id: json.provider.id, name: json.provider.name, type: json.provider.type },
       ]);
-      setName("");
-      setAcreage("");
-      setAddress("");
+      setNewProvider("");
     } catch (e) {
-      setError((e as Error).message);
+      setProviderError((e as Error).message);
     } finally {
-      setBusy(false);
+      setProviderBusy(false);
     }
   }
 
   return (
     <div className="space-y-5">
-      {/* Add community */}
-      <div className="card p-4">
-        <h3 className="text-sm font-semibold text-gray-900">Add a community</h3>
-        {communityError && (
-          <p className="mt-1 text-sm text-red-600">{communityError}</p>
-        )}
-        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-          <input
-            className="input sm:max-w-xs"
-            placeholder="Community name (e.g. Niederwald)"
-            value={newCommunity}
-            onChange={(e) => setNewCommunity(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addCommunity()}
-          />
-          <button
-            className="btn-secondary"
-            onClick={addCommunity}
-            disabled={communityBusy}
-          >
-            Add community
-          </button>
+      {/* Add community + add provider */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="card p-4">
+          <h3 className="text-sm font-semibold text-gray-900">Add a community</h3>
+          {communityError && (
+            <p className="mt-1 text-sm text-red-600">{communityError}</p>
+          )}
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <input
+              className="input"
+              placeholder="Community name (e.g. Niederwald)"
+              value={newCommunity}
+              onChange={(e) => setNewCommunity(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addCommunity()}
+            />
+            <button
+              className="btn-secondary whitespace-nowrap"
+              onClick={addCommunity}
+              disabled={communityBusy}
+            >
+              Add community
+            </button>
+          </div>
         </div>
-        <p className="mt-2 text-xs text-gray-400">
-          Communities group sites and drive report breakdowns. New ones appear
-          at the end of the list.
-        </p>
+
+        <div className="card p-4">
+          <h3 className="text-sm font-semibold text-gray-900">
+            Add a utility provider
+          </h3>
+          {providerError && (
+            <p className="mt-1 text-sm text-red-600">{providerError}</p>
+          )}
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <select
+              className="input sm:w-32"
+              value={newProviderType}
+              onChange={(e) => setNewProviderType(e.target.value)}
+            >
+              <option value="ELECTRIC">Electric</option>
+              <option value="WATER">Water</option>
+            </select>
+            <input
+              className="input"
+              placeholder="Provider name"
+              value={newProvider}
+              onChange={(e) => setNewProvider(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addProvider()}
+            />
+            <button
+              className="btn-secondary whitespace-nowrap"
+              onClick={addProvider}
+              disabled={providerBusy}
+            >
+              Add provider
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Quick add */}
+      {/* Add site */}
       <div className="card p-4">
         <h3 className="text-sm font-semibold text-gray-900">Add a site</h3>
         {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
-        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-5">
-          <input
-            className="input md:col-span-2"
-            placeholder="Site name (e.g. McCarty Park)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addSite()}
-          />
-          <select
-            className="input"
-            value={communityId}
-            onChange={(e) => setCommunityId(e.target.value)}
-          >
-            {communities.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <input
-            type="number"
-            className="input"
-            placeholder="acreage"
-            value={acreage}
-            onChange={(e) => setAcreage(e.target.value)}
-          />
+        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
+          <label className="block">
+            <span className="label">Site name</span>
+            <input
+              className="input"
+              placeholder="e.g. McCarty Park"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="label">Community</span>
+            <select
+              className="input"
+              value={communityId}
+              onChange={(e) => setCommunityId(e.target.value)}
+            >
+              {communities.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="label">Real estate type</span>
+            <select
+              className="input"
+              value={realEstateType}
+              onChange={(e) => setRealEstateType(e.target.value)}
+            >
+              <option value="">—</option>
+              {REAL_ESTATE_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {REAL_ESTATE_TYPE_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="label">Acreage</span>
+            <input
+              type="number"
+              className="input"
+              placeholder="acres"
+              value={acreage}
+              onChange={(e) => setAcreage(e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="label">Current electric (MW)</span>
+            <input
+              type="number"
+              className="input"
+              placeholder="MW"
+              value={currentMw}
+              onChange={(e) => setCurrentMw(e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="label">Projected electric (MW)</span>
+            <input
+              type="number"
+              className="input"
+              placeholder="MW"
+              value={projectedMw}
+              onChange={(e) => setProjectedMw(e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="label">Electric provider</span>
+            <select
+              className="input"
+              value={electricProviderId}
+              onChange={(e) => setElectricProviderId(e.target.value)}
+            >
+              <option value="">—</option>
+              {electricProviders.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="label">Water provider</span>
+            <select
+              className="input"
+              value={waterProviderId}
+              onChange={(e) => setWaterProviderId(e.target.value)}
+            >
+              <option value="">—</option>
+              {waterProviders.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="label">Address / GPS</span>
+            <input
+              className="input"
+              placeholder="optional"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="mt-3 flex justify-end">
           <button className="btn-primary" onClick={addSite} disabled={busy}>
-            Add site
+            {busy ? "Saving…" : "Add site"}
           </button>
         </div>
-        <input
-          className="input mt-2"
-          placeholder="Address or GPS (optional)"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-        />
       </div>
 
       {/* Grouped by community */}
@@ -191,32 +380,59 @@ export default function SitesManager({
               {cs.length === 0 ? (
                 <p className="mt-2 text-sm text-gray-400">No sites yet.</p>
               ) : (
-                <table className="mt-2 w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-gray-400">
-                      <th className="py-1">Site</th>
-                      <th className="py-1">Acreage</th>
-                      <th className="py-1">Address / GPS</th>
-                      <th className="py-1 text-right">Submissions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cs.map((s) => (
-                      <tr key={s.id} className="border-t border-gray-100">
-                        <td className="py-1 font-medium text-gray-900">
-                          {s.name}
-                        </td>
-                        <td className="py-1 text-gray-600">
-                          {s.acreage ? `${formatNumber(s.acreage)} ac` : "—"}
-                        </td>
-                        <td className="py-1 text-gray-600">{s.address ?? "—"}</td>
-                        <td className="py-1 text-right text-gray-600">
-                          {s.submissionCount}
-                        </td>
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-gray-400">
+                        <th className="py-1 pr-3">Site</th>
+                        <th className="py-1 pr-3">Type</th>
+                        <th className="py-1 pr-3">Acreage</th>
+                        <th className="py-1 pr-3">Electric (cur/proj MW)</th>
+                        <th className="py-1 pr-3">Electric provider</th>
+                        <th className="py-1 pr-3">Water provider</th>
+                        <th className="py-1 text-right">Subs</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {cs.map((s) => (
+                        <tr key={s.id} className="border-t border-gray-100 align-top">
+                          <td className="py-1 pr-3 font-medium text-gray-900">
+                            {s.name}
+                            {s.address && (
+                              <div className="text-xs font-normal text-gray-400">
+                                {s.address}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-1 pr-3 text-gray-600">
+                            {s.realEstateType
+                              ? REAL_ESTATE_TYPE_LABELS[s.realEstateType] ??
+                                s.realEstateType
+                              : "—"}
+                          </td>
+                          <td className="py-1 pr-3 text-gray-600">
+                            {s.acreage ? `${formatNumber(s.acreage)} ac` : "—"}
+                          </td>
+                          <td className="py-1 pr-3 text-gray-600">
+                            {s.currentElectricMw != null ||
+                            s.projectedElectricMw != null
+                              ? `${s.currentElectricMw ?? "—"} / ${s.projectedElectricMw ?? "—"}`
+                              : "—"}
+                          </td>
+                          <td className="py-1 pr-3 text-gray-600">
+                            {s.electricProviderName ?? "—"}
+                          </td>
+                          <td className="py-1 pr-3 text-gray-600">
+                            {s.waterProviderName ?? "—"}
+                          </td>
+                          <td className="py-1 text-right text-gray-600">
+                            {s.submissionCount}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           );

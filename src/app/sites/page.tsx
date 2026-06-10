@@ -5,11 +5,18 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Sites · HCEDP Tracker" };
 
 export default async function SitesPage() {
-  const [communities, sites] = await Promise.all([
+  const [communities, providers, sites] = await Promise.all([
     prisma.community.findMany({ orderBy: { order: "asc" } }),
+    prisma.utilityProvider.findMany({
+      orderBy: [{ type: "asc" }, { order: "asc" }],
+    }),
     prisma.site.findMany({
       orderBy: { name: "asc" },
-      include: { _count: { select: { submissions: true } } },
+      include: {
+        electricProvider: true,
+        waterProvider: true,
+        _count: { select: { submissions: true } },
+      },
     }),
   ]);
 
@@ -23,12 +30,24 @@ export default async function SitesPage() {
       </div>
       <SitesManager
         communities={communities.map((c) => ({ id: c.id, name: c.name }))}
+        providers={providers.map((p) => ({
+          id: p.id,
+          name: p.name,
+          type: p.type,
+        }))}
         initialSites={sites.map((s) => ({
           id: s.id,
           name: s.name,
           communityId: s.communityId,
           acreage: s.acreage,
           address: s.address,
+          realEstateType: s.realEstateType,
+          currentElectricMw: s.currentElectricMw,
+          projectedElectricMw: s.projectedElectricMw,
+          electricProviderId: s.electricProviderId,
+          electricProviderName: s.electricProvider?.name ?? null,
+          waterProviderId: s.waterProviderId,
+          waterProviderName: s.waterProvider?.name ?? null,
           submissionCount: s._count.submissions,
         }))}
       />

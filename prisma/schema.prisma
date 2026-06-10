@@ -49,6 +49,21 @@ enum SubmissionStatus {
   WITHDRAWN
 }
 
+// Real-estate classification of a site.
+enum RealEstateType {
+  INDUSTRIAL_GREENFIELD
+  BROWNFIELD
+  SPEC_INDUSTRIAL
+  MIXED_USE
+  OFFICE
+}
+
+// Whether a utility provider supplies electricity or water.
+enum UtilityProviderType {
+  ELECTRIC
+  WATER
+}
+
 // ---------------------------------------------------------------------------
 // Project — the spine of the system
 // ---------------------------------------------------------------------------
@@ -112,6 +127,10 @@ model Project {
   parsedAt      DateTime?
   parseWarnings Json?
 
+  // Archived projects are hidden from the board and reports but remain in the
+  // database, surfaced only via an explicit "archived" filter on the pipeline.
+  archivedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -126,6 +145,7 @@ model Project {
   @@index([stage])
   @@index([naicsCode])
   @@index([rfiReceivedDate])
+  @@index([archivedAt])
 }
 
 // Timestamped record of every stage change, for win/loss progression reporting.
@@ -253,6 +273,22 @@ model Community {
   @@index([order])
 }
 
+// Managed list of electricity and water utility providers. Editable in the UI
+// (like communities) and usable as a site attribute and a report grouping.
+model UtilityProvider {
+  id        String              @id @default(cuid())
+  name      String
+  type      UtilityProviderType
+  order     Int                 @default(0)
+  createdAt DateTime            @default(now())
+
+  electricForSites Site[] @relation("SiteElectricProvider")
+  waterForSites    Site[] @relation("SiteWaterProvider")
+
+  @@unique([type, name])
+  @@index([type, order])
+}
+
 // A real estate site we can submit. Created manually through the UI.
 model Site {
   id          String    @id @default(cuid())
@@ -265,12 +301,25 @@ model Site {
   notes      String? @db.Text
   attributes Json? // flexible bag for ad-hoc attributes
 
+  realEstateType RealEstateType?
+
+  // Electric capacity, in megawatts (MW).
+  currentElectricMw   Float?
+  projectedElectricMw Float?
+
+  electricProviderId String?
+  electricProvider   UtilityProvider? @relation("SiteElectricProvider", fields: [electricProviderId], references: [id])
+  waterProviderId    String?
+  waterProvider      UtilityProvider? @relation("SiteWaterProvider", fields: [waterProviderId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   submissions Submission[]
 
   @@index([communityId])
+  @@index([electricProviderId])
+  @@index([waterProviderId])
 }
 
 // Link between a project and a site we submitted for it. Powers partner reports.

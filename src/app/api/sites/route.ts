@@ -9,10 +9,23 @@ export async function GET(req: NextRequest) {
   const sites = await prisma.site.findMany({
     where: communityId ? { communityId } : undefined,
     orderBy: [{ community: { order: "asc" } }, { name: "asc" }],
-    include: { community: true, _count: { select: { submissions: true } } },
+    include: {
+      community: true,
+      electricProvider: true,
+      waterProvider: true,
+      _count: { select: { submissions: true } },
+    },
   });
   return NextResponse.json({ sites });
 }
+
+const RealEstateTypeEnum = z.enum([
+  "INDUSTRIAL_GREENFIELD",
+  "BROWNFIELD",
+  "SPEC_INDUSTRIAL",
+  "MIXED_USE",
+  "OFFICE",
+]);
 
 const CreateSiteSchema = z.object({
   name: z.string().min(1, "Site name is required"),
@@ -20,6 +33,11 @@ const CreateSiteSchema = z.object({
   acreage: z.number().nullable().optional(),
   address: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  realEstateType: RealEstateTypeEnum.nullable().optional(),
+  currentElectricMw: z.number().nullable().optional(),
+  projectedElectricMw: z.number().nullable().optional(),
+  electricProviderId: z.string().nullable().optional(),
+  waterProviderId: z.string().nullable().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -31,15 +49,21 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
+  const d = parsed.data;
   const site = await prisma.site.create({
     data: {
-      name: parsed.data.name.trim(),
-      communityId: parsed.data.communityId,
-      acreage: parsed.data.acreage ?? null,
-      address: parsed.data.address ?? null,
-      notes: parsed.data.notes ?? null,
+      name: d.name.trim(),
+      communityId: d.communityId,
+      acreage: d.acreage ?? null,
+      address: d.address ?? null,
+      notes: d.notes ?? null,
+      realEstateType: d.realEstateType ?? null,
+      currentElectricMw: d.currentElectricMw ?? null,
+      projectedElectricMw: d.projectedElectricMw ?? null,
+      electricProviderId: d.electricProviderId || null,
+      waterProviderId: d.waterProviderId || null,
     },
-    include: { community: true },
+    include: { community: true, electricProvider: true, waterProvider: true },
   });
   return NextResponse.json({ site }, { status: 201 });
 }

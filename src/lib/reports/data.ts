@@ -218,6 +218,124 @@ export async function cityActivityReport(
 }
 
 // ---------------------------------------------------------------------------
+// Report — Provider Activity
+// Same shape as City Activity but grouped by the submitted site's utility
+// provider (electric or water) instead of community. Sites with no provider in
+// the chosen dimension fall under an "Unassigned" group.
+// ---------------------------------------------------------------------------
+
+export interface ProviderActivityGroup {
+  providerId: string | null;
+  providerName: string;
+  projectCount: number;
+  submissionCount: number;
+  projects: CityActivityProject[];
+}
+export interface ProviderActivityReport {
+  kind: "provider-activity";
+  dimension: "electric" | "water";
+  filters: ReportFilterLabels;
+  groups: ProviderActivityGroup[];
+  totals: { providers: number; projects: number; submissions: number };
+}
+
+export async function providerActivityReport(
+  f: ReportFilters,
+  dimension: "electric" | "water",
+): Promise<ProviderActivityReport> {
+  const submissions = await prisma.submission.findMany({
+    where: submissionWhere(f),
+    orderBy: [{ project: { codename: "asc" } }, { submissionDate: "desc" }],
+    include: {
+      project: {
+        select: {
+          id: true,
+          codename: true,
+          stage: true,
+          naicsCode: true,
+          industryDescription: true,
+        },
+      },
+      site: {
+        select: {
+          name: true,
+          acreage: true,
+          electricProvider: { select: { id: true, name: true } },
+          waterProvider: { select: { id: true, name: true } },
+        },
+      },
+    },
+  });
+
+  const groups = new Map<
+    string,
+    { name: string; projects: Map<string, CityActivityProject>; submissionCount: number }
+  >();
+
+  for (const s of submissions) {
+    const provider =
+      dimension === "electric" ? s.site.electricProvider : s.site.waterProvider;
+    const key = provider?.id ?? "__none__";
+    const name =
+      provider?.name ?? `(No ${dimension} provider)`;
+
+    let g = groups.get(key);
+    if (!g) {
+      g = { name, projects: new Map(), submissionCount: 0 };
+      groups.set(key, g);
+    }
+    g.submissionCount += 1;
+
+    let p = g.projects.get(s.project.id);
+    if (!p) {
+      p = {
+        projectId: s.project.id,
+        codename: s.project.codename,
+        stage: s.project.stage,
+        naicsCode: s.project.naicsCode,
+        industryDescription: s.project.industryDescription,
+        sites: [],
+      };
+      g.projects.set(s.project.id, p);
+    }
+    p.sites.push({
+      siteName: s.site.name,
+      acreage: s.site.acreage,
+      submissionDate: s.submissionDate.toISOString(),
+      status: s.status,
+      outcomeNote: s.outcomeNote,
+    });
+  }
+
+  // Real providers first (alphabetical), Unassigned last.
+  const groupRows: ProviderActivityGroup[] = [...groups.entries()]
+    .sort((a, b) => {
+      if (a[0] === "__none__") return 1;
+      if (b[0] === "__none__") return -1;
+      return a[1].name.localeCompare(b[1].name);
+    })
+    .map(([key, g]) => ({
+      providerId: key === "__none__" ? null : key,
+      providerName: g.name,
+      projectCount: g.projects.size,
+      submissionCount: g.submissionCount,
+      projects: [...g.projects.values()],
+    }));
+
+  return {
+    kind: "provider-activity",
+    dimension,
+    filters: await describeFilters(f),
+    groups: groupRows,
+    totals: {
+      providers: groupRows.length,
+      projects: groupRows.reduce((n, g) => n + g.projectCount, 0),
+      submissions: submissions.length,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Report 2 — Quarterly Submission Summary
 // Per-community counts: submissions, distinct projects, and win/loss outcomes.
 // ---------------------------------------------------------------------------

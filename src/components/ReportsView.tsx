@@ -11,6 +11,7 @@ import {
 import type {
   CityActivityReport,
   LeadSourceReport,
+  ProviderActivityReport,
   QuarterlyReport,
 } from "@/lib/reports/data";
 
@@ -24,7 +25,11 @@ interface ProviderLite {
   type: string;
 }
 
-type ReportKind = "city-activity" | "quarterly" | "lead-source";
+type ReportKind =
+  | "city-activity"
+  | "quarterly"
+  | "provider-activity"
+  | "lead-source";
 
 function quarterOptions(): string[] {
   const now = new Date();
@@ -58,6 +63,7 @@ export default function ReportsView({
   const [stage, setStage] = useState("");
   const [electricProviderId, setElectricProviderId] = useState("");
   const [waterProviderId, setWaterProviderId] = useState("");
+  const [dimension, setDimension] = useState<"electric" | "water">("electric");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [quarter, setQuarter] = useState("");
@@ -67,6 +73,8 @@ export default function ReportsView({
   const [city, setCity] = useState<CityActivityReport | null>(null);
   const [quarterly, setQuarterly] = useState<QuarterlyReport | null>(null);
   const [leadSource, setLeadSource] = useState<LeadSourceReport | null>(null);
+  const [providerActivity, setProviderActivity] =
+    useState<ProviderActivityReport | null>(null);
 
   // Lead Source is project-level, so community/provider filters do not apply.
   const submissionScoped = kind !== "lead-source";
@@ -78,6 +86,7 @@ export default function ReportsView({
       p.set("electricProviderId", electricProviderId);
     if (submissionScoped && waterProviderId)
       p.set("waterProviderId", waterProviderId);
+    if (kind === "provider-activity") p.set("dimension", dimension);
     if (naics) p.set("naics", naics);
     if (stage) p.set("stage", stage);
     if (quarter) {
@@ -88,6 +97,8 @@ export default function ReportsView({
     }
     return p;
   }, [
+    kind,
+    dimension,
     submissionScoped,
     communityId,
     electricProviderId,
@@ -109,6 +120,7 @@ export default function ReportsView({
       setCity(kind === "city-activity" ? json : null);
       setQuarterly(kind === "quarterly" ? json : null);
       setLeadSource(kind === "lead-source" ? json : null);
+      setProviderActivity(kind === "provider-activity" ? json : null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -125,6 +137,7 @@ export default function ReportsView({
   const hasResult =
     (kind === "city-activity" && city) ||
     (kind === "quarterly" && quarterly) ||
+    (kind === "provider-activity" && providerActivity) ||
     (kind === "lead-source" && leadSource);
 
   const tab = (k: ReportKind, label: string) => (
@@ -143,8 +156,33 @@ export default function ReportsView({
         <div className="flex flex-wrap gap-2">
           {tab("city-activity", "City Activity")}
           {tab("quarterly", "Quarterly Summary")}
+          {tab("provider-activity", "Provider Activity")}
           {tab("lead-source", "Lead Source")}
         </div>
+
+        {kind === "provider-activity" && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-500">Group by</span>
+            <div className="flex gap-1">
+              <button
+                className={
+                  dimension === "electric" ? "btn-primary" : "btn-secondary"
+                }
+                onClick={() => setDimension("electric")}
+              >
+                Electric provider
+              </button>
+              <button
+                className={
+                  dimension === "water" ? "btn-primary" : "btn-secondary"
+                }
+                onClick={() => setDimension("water")}
+              >
+                Water provider
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-4">
           <div>
@@ -287,8 +325,89 @@ export default function ReportsView({
       {kind === "quarterly" && quarterly && (
         <QuarterlyResult report={quarterly} />
       )}
+      {kind === "provider-activity" && providerActivity && (
+        <ProviderActivityResult report={providerActivity} />
+      )}
       {kind === "lead-source" && leadSource && (
         <LeadSourceResult report={leadSource} />
+      )}
+    </div>
+  );
+}
+
+function ProviderActivityResult({
+  report,
+}: {
+  report: ProviderActivityReport;
+}) {
+  const dim = report.dimension === "electric" ? "electric" : "water";
+  return (
+    <div className="space-y-4">
+      <FilterEcho f={report.filters} />
+      <p className="text-sm text-gray-600">
+        Grouped by {dim} provider · {report.totals.providers} provider
+        {report.totals.providers === 1 ? "" : "s"} · {report.totals.projects}{" "}
+        project{report.totals.projects === 1 ? "" : "s"} ·{" "}
+        {report.totals.submissions} submission
+        {report.totals.submissions === 1 ? "" : "s"}
+      </p>
+      {report.groups.length === 0 ? (
+        <p className="text-sm text-gray-400">
+          No submissions match these filters.
+        </p>
+      ) : (
+        report.groups.map((g) => (
+          <div key={g.providerId ?? "none"} className="card p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-brand">
+                {g.providerName}
+              </h3>
+              <span className="badge bg-gray-100 text-gray-600">
+                {g.projectCount} project{g.projectCount === 1 ? "" : "s"} ·{" "}
+                {g.submissionCount} submission{g.submissionCount === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div className="mt-2 space-y-3">
+              {g.projects.map((p) => (
+                <div key={p.projectId}>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {p.codename}
+                    <span className="ml-2 text-xs font-normal text-gray-500">
+                      {STAGE_LABELS[p.stage] ?? p.stage}
+                      {p.naicsCode ? ` · NAICS ${p.naicsCode}` : ""}
+                    </span>
+                  </p>
+                  <table className="mt-1 w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-gray-400">
+                        <th className="py-1">Site</th>
+                        <th className="py-1">Acreage</th>
+                        <th className="py-1">Submitted</th>
+                        <th className="py-1">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {p.sites.map((s, i) => (
+                        <tr key={i} className="border-t border-gray-100">
+                          <td className="py-1 text-gray-900">{s.siteName}</td>
+                          <td className="py-1 text-gray-600">
+                            {s.acreage != null ? `${s.acreage} ac` : "—"}
+                          </td>
+                          <td className="py-1 text-gray-600">
+                            {formatDate(s.submissionDate)}
+                          </td>
+                          <td className="py-1 text-gray-600">
+                            {SUBMISSION_STATUS_LABELS[s.status] ?? s.status}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
       )}
     </div>
   );

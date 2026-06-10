@@ -9,6 +9,7 @@ import type {
 import {
   type CityActivityReport,
   type LeadSourceReport,
+  type ProviderActivityReport,
   type QuarterlyReport,
   type ReportFilterLabels,
 } from "@/lib/reports/data";
@@ -138,6 +139,67 @@ export async function cityActivityPdf(
                 text: SUBMISSION_STATUS_LABELS[s.status] ?? s.status,
                 style: "td",
               },
+            ]),
+          ],
+        },
+        layout: "lightHorizontalLines",
+        margin: [0, 2, 0, 4] as [number, number, number, number],
+      });
+    }
+  }
+
+  return toBuffer({
+    pageMargins: [40, 40, 40, 40],
+    content,
+    styles,
+    defaultStyle: { font: "Roboto", fontSize: 9 },
+  });
+}
+
+export async function providerActivityPdf(
+  report: ProviderActivityReport,
+): Promise<Buffer> {
+  const dimLabel = report.dimension === "electric" ? "Electric" : "Water";
+  const content: Content[] = [
+    ...header(`${dimLabel} Provider Activity`, report.filters),
+  ];
+
+  if (report.groups.length === 0) {
+    content.push({ text: "No submissions match these filters.", style: "empty" });
+  }
+
+  for (const g of report.groups) {
+    content.push({
+      text: `${g.providerName}  ·  ${g.projectCount} project${g.projectCount === 1 ? "" : "s"}, ${g.submissionCount} submission${g.submissionCount === 1 ? "" : "s"}`,
+      style: "community",
+    });
+    for (const p of g.projects) {
+      content.push({ text: p.codename, style: "project" });
+      const metaParts = [
+        STAGE_LABELS[p.stage] ?? p.stage,
+        p.naicsCode ? `NAICS ${p.naicsCode}` : null,
+        p.industryDescription,
+      ].filter(Boolean);
+      content.push({ text: metaParts.join("  ·  "), style: "meta" });
+      content.push({
+        table: {
+          headerRows: 1,
+          widths: ["*", "auto", "auto", "*"],
+          body: [
+            [
+              { text: "Site", style: "th" },
+              { text: "Acreage", style: "th" },
+              { text: "Submitted", style: "th" },
+              { text: "Status", style: "th" },
+            ],
+            ...p.sites.map((s) => [
+              { text: s.siteName, style: "td" },
+              { text: s.acreage != null ? `${s.acreage} ac` : "—", style: "td" },
+              {
+                text: new Date(s.submissionDate).toLocaleDateString("en-US"),
+                style: "td",
+              },
+              { text: SUBMISSION_STATUS_LABELS[s.status] ?? s.status, style: "td" },
             ]),
           ],
         },

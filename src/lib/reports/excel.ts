@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import {
   type CityActivityReport,
   type LeadSourceReport,
+  type ProviderActivityReport,
   type QuarterlyReport,
   type ReportFilterLabels,
 } from "@/lib/reports/data";
@@ -62,6 +63,62 @@ export async function cityActivityXlsx(
       for (const s of p.sites) {
         ws.addRow([
           c.communityName,
+          p.codename,
+          STAGE_LABELS[p.stage] ?? p.stage,
+          p.naicsCode ?? "",
+          p.industryDescription ?? "",
+          s.siteName,
+          s.acreage ?? "",
+          new Date(s.submissionDate),
+          SUBMISSION_STATUS_LABELS[s.status] ?? s.status,
+          s.outcomeNote ?? "",
+        ]);
+      }
+    }
+  }
+
+  ws.columns.forEach((col) => {
+    let max = 10;
+    col.eachCell?.({ includeEmpty: false }, (cell) => {
+      const len = String(cell.value ?? "").length;
+      if (len > max) max = len;
+    });
+    col.width = Math.min(max + 2, 50);
+  });
+
+  const out = await wb.xlsx.writeBuffer();
+  return Buffer.from(out);
+}
+
+export async function providerActivityXlsx(
+  report: ProviderActivityReport,
+): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "HCEDP Projects Tracker";
+  const dimLabel = report.dimension === "electric" ? "Electric" : "Water";
+  const ws = wb.addWorksheet(`${dimLabel} Provider Activity`);
+
+  writeFilterBlock(ws, `${dimLabel} Provider Activity`, report.filters);
+
+  const headerRow = ws.addRow([
+    `${dimLabel} Provider`,
+    "Project",
+    "Stage",
+    "NAICS",
+    "Industry",
+    "Site",
+    "Acreage",
+    "Submitted",
+    "Status",
+    "Outcome",
+  ]);
+  styleHeader(headerRow);
+
+  for (const g of report.groups) {
+    for (const p of g.projects) {
+      for (const s of p.sites) {
+        ws.addRow([
+          g.providerName,
           p.codename,
           STAGE_LABELS[p.stage] ?? p.stage,
           p.naicsCode ?? "",

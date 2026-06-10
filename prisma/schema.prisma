@@ -1,0 +1,295 @@
+// HCEDP Projects Tracker — system of record schema.
+// All access goes through Prisma so the app stays portable across hosts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum PipelineStage {
+  RFI_RECEIVED
+  PENDING_INFORMATION
+  RFI_SUBMITTED
+  SHORTLISTED
+  SITE_VISIT
+  WON
+  LOST
+}
+
+enum LeadSource {
+  TEXAS_GOVERNORS_OFFICE
+  OPPORTUNITY_AUSTIN
+  DIRECT
+  OTHER
+}
+
+enum UtilityType {
+  ELECTRICITY
+  WATER
+  WASTEWATER
+  GAS
+}
+
+// Status/outcome of an individual site submission within a project.
+enum SubmissionStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  SHORTLISTED
+  SITE_VISIT
+  WON
+  LOST
+  WITHDRAWN
+}
+
+// ---------------------------------------------------------------------------
+// Project — the spine of the system
+// ---------------------------------------------------------------------------
+
+model Project {
+  id       String        @id @default(cuid())
+  codename String
+  stage    PipelineStage @default(RFI_RECEIVED)
+
+  // Lead source / routing
+  leadSource            LeadSource @default(OTHER)
+  leadSourceOther       String?
+  sourceContactName     String?
+  sourceContactEmail    String?
+  submissionDestination String?
+
+  // Industry / narrative
+  naicsCode           String?
+  industryDescription String?
+  narrative           String? @db.Text
+  projectType         String? // expansion, new location, build-to-suit, ...
+
+  // Capital investment (USD). Decimal keeps full precision for large figures.
+  capexTotal     Decimal? @db.Decimal(18, 2)
+  capexLand      Decimal? @db.Decimal(18, 2)
+  capexBuilding  Decimal? @db.Decimal(18, 2)
+  capexEquipment Decimal? @db.Decimal(18, 2)
+  financingNotes String?  @db.Text
+  hasFunding     Boolean?
+
+  // Jobs
+  avgWage Decimal? @db.Decimal(14, 2)
+
+  // Site requirements
+  minAcreage              Float?
+  buildingSizeNeeds       String? @db.Text
+  siteLocationPreferences String[] // e.g. Industrial Park, Freestanding Site, Incubator
+
+  // Notes
+  environmentalNotes  String? @db.Text
+  transportationNotes String? @db.Text
+  specialServicesNotes String? @db.Text
+
+  // Required response deliverables (e.g. "Site Summary Spreadsheet", "Combined PDF")
+  requiredDeliverables String[]
+
+  // Dates
+  rfiReceivedDate       DateTime?
+  responseDueDate       DateTime?
+  responseSubmittedDate DateTime?
+  siteVisitDate         DateTime?
+  projectedDecisionDate DateTime?
+  productionStartDate   DateTime?
+
+  // Original intake content
+  rawEmailText String? @db.Text
+
+  // Parser provenance + flags surfaced for human review.
+  // parseWarnings: [{ field, message, kind: "assumption" | "conversion" | ... }]
+  parsedModel   String?
+  parsedAt      DateTime?
+  parseWarnings Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stageHistory    ProjectStageEvent[]
+  jobPhases       JobPhase[]
+  utilities       UtilityRequirement[]
+  criticalCriteria CriticalCriterion[]
+  qualitativeNotes ProjectQualitativeNote[]
+  attachments     Attachment[]
+  submissions     Submission[]
+
+  @@index([stage])
+  @@index([naicsCode])
+  @@index([rfiReceivedDate])
+}
+
+// Timestamped record of every stage change, for win/loss progression reporting.
+model ProjectStageEvent {
+  id        String         @id @default(cuid())
+  projectId String
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fromStage PipelineStage?
+  toStage   PipelineStage
+  note      String?
+  changedAt DateTime       @default(now())
+
+  @@index([projectId])
+}
+
+// Phased job counts with their timeframe (e.g. 75 in "Year One", 200 in "3-5 years").
+model JobPhase {
+  id         String  @id @default(cuid())
+  projectId  String
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  count      Int
+  timeframe  String  // free text as written in the RFI
+  orderIndex Int     @default(0)
+
+  @@index([projectId])
+}
+
+// Normalized utility requirement. Stores normalized value + the raw value as
+// written + any time-phased datapoints. Conversions are flagged for review.
+model UtilityRequirement {
+  id        String      @id @default(cuid())
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type      UtilityType
+
+  normalizedValue Float? // in normalizedUnit
+  normalizedUnit  String? // "MW", "thousand gal/day", "thousand ft3/day"
+  rawValue        String? // exactly as written in the source
+
+  purpose      String? @db.Text
+  alternatives String? @db.Text // e.g. ULSD diesel / battery storage
+  notes        String? @db.Text
+
+  // Set when a value had to be converted/assumed during parsing.
+  flagged        Boolean @default(false)
+  assumptionNote String? @db.Text
+
+  datapoints UtilityDatapoint[]
+
+  @@index([projectId])
+}
+
+// A single dated datapoint within a utility requirement (e.g. a load-ramp step).
+model UtilityDatapoint {
+  id                   String             @id @default(cuid())
+  utilityRequirementId String
+  requirement          UtilityRequirement @relation(fields: [utilityRequirementId], references: [id], onDelete: Cascade)
+
+  kind   String? // "day-one" | "peak" | "ramp" | "monthly" | ...
+  label  String?
+  value  Float?
+  unit   String?
+  date   DateTime?
+  rawValue String?
+
+  flagged        Boolean @default(false)
+  assumptionNote String?
+
+  @@index([utilityRequirementId])
+}
+
+// Ranked must-have criteria, in order of importance, that drive site selection.
+// These become the Yes/No columns of the Site Summary deliverable.
+model CriticalCriterion {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rank      Int
+  text      String  @db.Text
+
+  @@index([projectId])
+}
+
+// Free-text qualitative needs that do not fit a structured field
+// (e.g. "supportive educational ecosystem"). Queryable for the future
+// Generate RFI Response feature.
+model ProjectQualitativeNote {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  label     String
+  content   String  @db.Text
+
+  @@index([projectId])
+}
+
+// Uploaded attachment, persisted via the storage abstraction.
+model Attachment {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  storageKey  String // opaque key returned by the storage driver
+  kind        String   @default("attachment") // "attachment" | "rfi_email" | ...
+  createdAt   DateTime @default(now())
+
+  @@index([projectId])
+}
+
+// ---------------------------------------------------------------------------
+// Community / Site / Submission
+// ---------------------------------------------------------------------------
+
+// Fixed lookup, seeded in a specific order.
+model Community {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  order     Int
+  createdAt DateTime @default(now())
+
+  sites Site[]
+
+  @@index([order])
+}
+
+// A real estate site we can submit. Created manually through the UI.
+model Site {
+  id          String    @id @default(cuid())
+  name        String
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id])
+
+  acreage    Float?
+  address    String?
+  notes      String? @db.Text
+  attributes Json? // flexible bag for ad-hoc attributes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submissions Submission[]
+
+  @@index([communityId])
+}
+
+// Link between a project and a site we submitted for it. Powers partner reports.
+model Submission {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  siteId    String
+  site      Site    @relation(fields: [siteId], references: [id], onDelete: Restrict)
+
+  submissionDate DateTime         @default(now())
+  status         SubmissionStatus @default(SUBMITTED)
+  outcomeNote    String?          @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, siteId])
+  @@index([projectId])
+  @@index([siteId])
+  @@index([submissionDate])
+}

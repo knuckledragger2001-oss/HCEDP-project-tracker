@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16
+    container_name: hcedp_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hcedp
+      POSTGRES_PASSWORD: hcedp_local_dev
+      POSTGRES_DB: hcedp
+    ports:
+      - "5432:5432"
+    volumes:
+      - hcedp_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hcedp -d hcedp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  hcedp_pgdata:

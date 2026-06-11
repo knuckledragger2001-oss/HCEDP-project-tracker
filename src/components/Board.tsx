@@ -33,6 +33,22 @@ export interface BoardProject {
   submissionCount: number;
 }
 
+// Flags an overdue / imminent response due date, but only while the project is
+// still awaiting a response (RFI Received or Pending Information). Returns
+// "overdue" once the due date has passed, "soon" within one calendar day.
+function dueUrgency(p: BoardProject): "overdue" | "soon" | null {
+  if (p.stage !== "RFI_RECEIVED" && p.stage !== "PENDING_INFORMATION") return null;
+  if (!p.responseDueDate) return null;
+  const due = new Date(p.responseDueDate);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+  const diffDays = Math.round((dueDay.getTime() - today.getTime()) / 86_400_000);
+  if (diffDays < 0) return "overdue";
+  if (diffDays <= 1) return "soon";
+  return null;
+}
+
 // Returns the most contextually relevant date label + value for a given stage.
 function stageDate(p: BoardProject): { label: string; date: string } | null {
   switch (p.stage) {
@@ -126,7 +142,19 @@ function Card({ project }: { project: BoardProject }) {
         </div>
         {(() => {
           const sd = stageDate(project);
-          return sd ? <div>{sd.label} {formatDate(sd.date)}</div> : null;
+          if (!sd) return null;
+          const urgency = dueUrgency(project);
+          const cls =
+            urgency === "overdue"
+              ? "font-medium text-red-600"
+              : urgency === "soon"
+                ? "font-medium text-yellow-600"
+                : "";
+          return (
+            <div className={cls}>
+              {sd.label} {formatDate(sd.date)}
+            </div>
+          );
         })()}
         {project.submissionCount > 0 && (
           <div className="text-brand">

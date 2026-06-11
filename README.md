@@ -181,7 +181,13 @@ The app is host-agnostic (Vercel, Render, Railway, a container, …). To deploy:
 - Inbound Outlook task that posts to the same internal intake endpoint
 - Free-form AI reporting: a text box on the Reports page where staff type a
   plain-language question and the Claude API answers over the project/site data
-  (likely via tool use against read-only queries), beyond the fixed report types
+  (likely via tool use against read-only queries), beyond the fixed report
+  dropdowns. Targets ad-hoc questions the built-in reports can't express — e.g.
+  "How many projects from Opportunity Austin had a turnaround shorter than 3
+  days?" or "Which won projects had capex over $50M and named water capacity as
+  a critical criterion?" The model translates the question into safe read-only
+  queries and returns a written answer (with the supporting numbers), rather
+  than the user picking from preset filters.
 - Submission readiness review: upload all documents being considered for a
   project submission; the Claude API reviews them against the project's critical
   criteria and required deliverables, returns a pass/fail assessment per

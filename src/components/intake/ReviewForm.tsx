@@ -41,6 +41,156 @@ function d(value: string | null | undefined): string {
   return value ? value.slice(0, 10) : "";
 }
 
+// ---------------------------------------------------------------------------
+// Warning helpers
+// ---------------------------------------------------------------------------
+
+type WarnCategory = "missing" | "verify" | "conversion" | "fyi";
+
+const WARN_CATEGORY_META: Record<
+  WarnCategory,
+  { label: string; dot: string; border: string; bg: string; text: string; badge: string }
+> = {
+  missing:    { label: "Missing",          dot: "bg-red-500",   border: "border-red-200",   bg: "bg-red-50",   text: "text-red-800",   badge: "bg-red-100 text-red-700" },
+  verify:     { label: "Verify",           dot: "bg-amber-500", border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-800", badge: "bg-amber-100 text-amber-700" },
+  conversion: { label: "Value Conversion", dot: "bg-blue-500",  border: "border-blue-200",  bg: "bg-blue-50",  text: "text-blue-800",  badge: "bg-blue-100 text-blue-700" },
+  fyi:        { label: "FYI",              dot: "bg-gray-400",  border: "border-gray-200",  bg: "bg-gray-50",  text: "text-gray-700",  badge: "bg-gray-100 text-gray-600" },
+};
+
+function classifyWarning(kind: string | undefined): WarnCategory {
+  if (kind === "missing")    return "missing";
+  if (kind === "assumption") return "verify";
+  if (kind === "conversion") return "conversion";
+  return "fyi";
+}
+
+const TOP_LEVEL_FIELD_LABELS: Record<string, string> = {
+  codename: "Project codename",
+  naicsCode: "NAICS code",
+  industryDescription: "Industry description",
+  narrative: "Narrative",
+  projectType: "Project type",
+  capexTotal: "Total capital investment",
+  capexLand: "Land investment",
+  capexBuilding: "Building investment",
+  capexEquipment: "Equipment investment",
+  financingNotes: "Financing notes",
+  avgWage: "Average wage",
+  minAcreage: "Minimum acreage",
+  rfiReceivedDate: "RFI received date",
+  responseDueDate: "Response due date",
+  projectedDecisionDate: "Projected decision date",
+  productionStartDate: "Production start date",
+  leadSource: "Lead source",
+  leadSourceOther: "Lead source detail",
+  sourceContactName: "Source contact name",
+  sourceContactEmail: "Source contact email",
+  submissionDestination: "Submission destination",
+  buildingSizeNeeds: "Building size needs",
+  siteLocationPreferences: "Site location preferences",
+  requiredDeliverables: "Required deliverables",
+  environmentalNotes: "Environmental notes",
+  transportationNotes: "Transportation notes",
+  specialServicesNotes: "Special services notes",
+};
+
+const UTILITY_TYPE_LABELS: Record<string, string> = {
+  ELECTRICITY: "Electricity",
+  WATER: "Water",
+  WASTEWATER: "Wastewater",
+  GAS: "Gas",
+};
+
+const UTILITY_SUBFIELD_LABELS: Record<string, string> = {
+  normalizedValue: "normalized value",
+  normalizedUnit: "unit",
+  rawValue: "raw value",
+  purpose: "purpose",
+  alternatives: "alternatives",
+  notes: "notes",
+};
+
+function friendlyFieldName(field: string): string {
+  if (TOP_LEVEL_FIELD_LABELS[field]) return TOP_LEVEL_FIELD_LABELS[field];
+
+  // utilities.ELECTRICITY.normalizedValue  or  utilities.WATER.datapoints[2].value
+  const utilMatch = field.match(/^utilities\.([A-Z]+)\.?(.*)?$/);
+  if (utilMatch) {
+    const utilLabel = UTILITY_TYPE_LABELS[utilMatch[1]] ?? utilMatch[1];
+    const rest = utilMatch[2] ?? "";
+    if (!rest) return `${utilLabel} requirement`;
+    const dpMatch = rest.match(/^datapoints\[(\d+)\]\.?(.*)$/);
+    if (dpMatch) {
+      const n = parseInt(dpMatch[1]) + 1;
+      const sub = dpMatch[2] ? ` — ${dpMatch[2]}` : "";
+      return `${utilLabel} load datapoint ${n}${sub}`;
+    }
+    const subLabel = UTILITY_SUBFIELD_LABELS[rest] ?? rest;
+    return `${utilLabel} — ${subLabel}`;
+  }
+
+  // jobPhases[N] / criticalCriteria[N]
+  const jpMatch = field.match(/^jobPhases\[(\d+)\]/);
+  if (jpMatch) return `Job phase ${parseInt(jpMatch[1]) + 1}`;
+  const ccMatch = field.match(/^criticalCriteria\[(\d+)\]/);
+  if (ccMatch) return `Critical criterion #${parseInt(ccMatch[1]) + 1}`;
+
+  // Fallback: camelCase → Title Case words
+  return field
+    .replace(/\[(\d+)\]/g, (_, n) => ` ${parseInt(n) + 1}`)
+    .replace(/\./g, " — ")
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^\w/, (c) => c.toUpperCase())
+    .trim();
+}
+
+function WarningBuckets({ warnings }: { warnings: ParsedProject["parseWarnings"] }) {
+  if (!warnings || warnings.length === 0) return null;
+
+  const buckets = (["missing", "verify", "conversion", "fyi"] as WarnCategory[]).map(
+    (cat) => ({ cat, items: warnings.filter((w) => classifyWarning(w.kind) === cat) }),
+  ).filter((b) => b.items.length > 0);
+
+  return (
+    <div className="rounded-md border border-gray-200 bg-white p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold text-gray-700">
+          {warnings.length} parser note{warnings.length === 1 ? "" : "s"}
+        </span>
+        {buckets.map(({ cat, items }) => {
+          const m = WARN_CATEGORY_META[cat];
+          return (
+            <span key={cat} className={`badge ${m.badge}`}>
+              {items.length} {m.label}
+            </span>
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+        {buckets.map(({ cat, items }) => {
+          const m = WARN_CATEGORY_META[cat];
+          return (
+            <div key={cat} className={`rounded border ${m.border} ${m.bg} p-2`}>
+              <div className="mb-1 flex items-center gap-1.5">
+                <span className={`inline-block h-2 w-2 rounded-full ${m.dot}`} />
+                <span className={`text-xs font-semibold ${m.text}`}>{m.label}</span>
+              </div>
+              <ul className="space-y-1">
+                {items.map((w, i) => (
+                  <li key={i} className={`text-xs ${m.text}`}>
+                    <span className="font-medium">{friendlyFieldName(w.field)}</span>
+                    {" — "}{w.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function ReviewForm({
   proposal: initial,
   attachments,
@@ -55,7 +205,11 @@ export default function ReviewForm({
   parserAvailable: boolean;
 }) {
   const router = useRouter();
-  const [p, setP] = useState<ParsedProject>(initial);
+  const today = new Date().toISOString().slice(0, 10);
+  const [p, setP] = useState<ParsedProject>({
+    ...initial,
+    rfiReceivedDate: initial.rfiReceivedDate ?? today,
+  });
   const [stage, setStage] = useState<PipelineStageValue>("RFI_RECEIVED");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -144,21 +298,7 @@ export default function ReviewForm({
         </div>
       )}
 
-      {flags.length > 0 && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
-          <p className="text-sm font-semibold text-amber-800">
-            {flags.length} value{flags.length === 1 ? "" : "s"} to verify
-          </p>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-amber-700">
-            {flags.map((w, i) => (
-              <li key={i}>
-                <span className="font-medium">{w.field}</span>
-                {w.kind ? ` (${w.kind})` : ""}: {w.message}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <WarningBuckets warnings={flags} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Section title="Identity & source">

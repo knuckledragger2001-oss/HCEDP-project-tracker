@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
       community: true,
       electricProvider: true,
       waterProvider: true,
+      sewerProvider: true,
       _count: { select: { submissions: true } },
     },
   });
@@ -27,6 +28,8 @@ const RealEstateTypeEnum = z.enum([
   "OFFICE",
 ]);
 
+const CountyEnum = z.enum(["HAYS", "CALDWELL", "TRAVIS"]);
+
 const CreateSiteSchema = z.object({
   name: z.string().min(1, "Site name is required"),
   communityId: z.string().min(1, "Community is required"),
@@ -34,10 +37,14 @@ const CreateSiteSchema = z.object({
   address: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   realEstateType: RealEstateTypeEnum.nullable().optional(),
+  county: CountyEnum.nullable().optional(),
+  squareFeet: z.number().nullable().optional(),
+  pricePerSqFt: z.number().nullable().optional(),
   currentElectricMw: z.number().nullable().optional(),
   projectedElectricMw: z.number().nullable().optional(),
   electricProviderId: z.string().nullable().optional(),
   waterProviderId: z.string().nullable().optional(),
+  sewerProviderId: z.string().nullable().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -58,12 +65,21 @@ export async function POST(req: NextRequest) {
       address: d.address ?? null,
       notes: d.notes ?? null,
       realEstateType: d.realEstateType ?? null,
+      county: d.county ?? null,
+      squareFeet: d.squareFeet ?? null,
+      pricePerSqFt: d.pricePerSqFt ?? null,
       currentElectricMw: d.currentElectricMw ?? null,
       projectedElectricMw: d.projectedElectricMw ?? null,
       electricProviderId: d.electricProviderId || null,
       waterProviderId: d.waterProviderId || null,
+      sewerProviderId: d.sewerProviderId || null,
     },
-    include: { community: true, electricProvider: true, waterProvider: true },
+    include: {
+      community: true,
+      electricProvider: true,
+      waterProvider: true,
+      sewerProvider: true,
+    },
   });
   return NextResponse.json({ site }, { status: 201 });
 }

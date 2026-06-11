@@ -97,12 +97,22 @@ Then open <http://localhost:3000>.
 | `ANTHROPIC_MODEL_HIGH_EFFORT` | no       | Stronger model for difficult docs (default `claude-opus-4-8`)            |
 | `STORAGE_DRIVER`              | no       | `local` (default). Future: `s3` / `blob`                                 |
 | `STORAGE_LOCAL_DIR`           | no       | Where local uploads are written (default `./storage-uploads`)            |
+| `BASIC_AUTH_USER`             | no       | Username for the shared-password login gate (see below)                  |
+| `BASIC_AUTH_PASS`             | no       | Password for the shared-password login gate                              |
 
 \* Without an API key, intake falls back to a blank, fully editable form so RFIs
 can still be entered and saved by hand.
 
 The API key is read **only** from the environment (`src/lib/config.ts`). It is
 never hardcoded, and `.env` is git-ignored.
+
+### Login gate
+
+The app uses HTTP Basic Auth (browser-native login prompt). To enable it, set
+`BASIC_AUTH_USER` and `BASIC_AUTH_PASS` in your Railway environment variables
+(or `.env` locally). If either variable is unset, the gate is disabled — useful
+for local development. In Railway, add both variables in the app service
+Variables tab, then redeploy.
 
 ---
 
@@ -172,3 +182,7 @@ The app is host-agnostic (Vercel, Render, Railway, a container, …). To deploy:
 - Free-form AI reporting: a text box on the Reports page where staff type a
   plain-language question and the Claude API answers over the project/site data
   (likely via tool use against read-only queries), beyond the fixed report types
+- Site brochure scraper: upload a PDF marketing brochure for a site and the
+  Anthropic API extracts the structured fields (acreage, sq ft, price/sq ft,
+  utilities, county, address) into a draft review form before saving to the
+  sites database — same review-before-save pattern as RFI intake

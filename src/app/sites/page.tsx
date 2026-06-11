@@ -15,6 +15,7 @@ export default async function SitesPage() {
       include: {
         electricProvider: true,
         waterProvider: true,
+        sewerProvider: true,
         _count: { select: { submissions: true } },
       },
     }),
@@ -42,12 +43,17 @@ export default async function SitesPage() {
           acreage: s.acreage,
           address: s.address,
           realEstateType: s.realEstateType,
+          county: s.county,
+          squareFeet: s.squareFeet,
+          pricePerSqFt: s.pricePerSqFt ? Number(s.pricePerSqFt.toString()) : null,
           currentElectricMw: s.currentElectricMw,
           projectedElectricMw: s.projectedElectricMw,
           electricProviderId: s.electricProviderId,
           electricProviderName: s.electricProvider?.name ?? null,
           waterProviderId: s.waterProviderId,
           waterProviderName: s.waterProvider?.name ?? null,
+          sewerProviderId: s.sewerProviderId,
+          sewerProviderName: s.sewerProvider?.name ?? null,
           submissionCount: s._count.submissions,
         }))}
       />

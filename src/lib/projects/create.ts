@@ -47,7 +47,7 @@ export async function createProjectFromProposal(input: SaveProjectInput) {
 
     requiredDeliverables: input.requiredDeliverables ?? [],
 
-    rfiReceivedDate: toDate(input.rfiReceivedDate),
+    rfiReceivedDate: toDate(input.rfiReceivedDate) ?? new Date(),
     responseDueDate: toDate(input.responseDueDate),
     responseSubmittedDate: toDate(input.responseSubmittedDate),
     siteVisitDate: toDate(input.siteVisitDate),

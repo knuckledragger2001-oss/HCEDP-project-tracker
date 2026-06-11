@@ -58,10 +58,18 @@ enum RealEstateType {
   OFFICE
 }
 
-// Whether a utility provider supplies electricity or water.
+// Whether a utility provider supplies electricity, water, or sewer.
 enum UtilityProviderType {
   ELECTRIC
   WATER
+  SEWER
+}
+
+// County in which a site is located.
+enum County {
+  HAYS
+  CALDWELL
+  TRAVIS
 }
 
 // ---------------------------------------------------------------------------
@@ -284,6 +292,7 @@ model UtilityProvider {
 
   electricForSites Site[] @relation("SiteElectricProvider")
   waterForSites    Site[] @relation("SiteWaterProvider")
+  sewerForSites    Site[] @relation("SiteSewerProvider")
 
   @@unique([type, name])
   @@index([type, order])
@@ -307,10 +316,16 @@ model Site {
   currentElectricMw   Float?
   projectedElectricMw Float?
 
+  county       County?
+  squareFeet   Float?
+  pricePerSqFt Decimal? @db.Decimal(14, 2)
+
   electricProviderId String?
   electricProvider   UtilityProvider? @relation("SiteElectricProvider", fields: [electricProviderId], references: [id])
   waterProviderId    String?
   waterProvider      UtilityProvider? @relation("SiteWaterProvider", fields: [waterProviderId], references: [id])
+  sewerProviderId    String?
+  sewerProvider      UtilityProvider? @relation("SiteSewerProvider", fields: [sewerProviderId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -320,6 +335,7 @@ model Site {
   @@index([communityId])
   @@index([electricProviderId])
   @@index([waterProviderId])
+  @@index([sewerProviderId])
 }
 
 // Link between a project and a site we submitted for it. Powers partner reports.

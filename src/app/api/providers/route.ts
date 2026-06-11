@@ -4,15 +4,14 @@ import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
-const ProviderTypeEnum = z.enum(["ELECTRIC", "WATER"]);
+const ProviderTypeEnum = z.enum(["ELECTRIC", "WATER", "SEWER"]);
+type ProviderType = "ELECTRIC" | "WATER" | "SEWER";
 
 export async function GET(req: NextRequest) {
-  const type = req.nextUrl.searchParams.get("type");
+  const type = req.nextUrl.searchParams.get("type") as ProviderType | null;
+  const validTypes: ProviderType[] = ["ELECTRIC", "WATER", "SEWER"];
   const providers = await prisma.utilityProvider.findMany({
-    where:
-      type === "ELECTRIC" || type === "WATER"
-        ? { type: type as "ELECTRIC" | "WATER" }
-        : undefined,
+    where: type && validTypes.includes(type) ? { type } : undefined,
     orderBy: [{ type: "asc" }, { order: "asc" }],
   });
   return NextResponse.json({ providers });

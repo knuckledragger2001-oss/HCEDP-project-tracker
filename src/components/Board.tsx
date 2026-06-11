@@ -30,26 +30,37 @@ export interface BoardProject {
   submissionCount: number;
 }
 
-type DateMode = "all" | "month" | "quarter" | "fy";
+type DateMode = "all" | "month" | "quarter" | "fy" | "custom";
 type ArchiveMode = "active" | "archived" | "all";
 
-// Earliest receipt date that still counts as "this period".
-function periodStart(mode: DateMode): Date | null {
+function periodBounds(
+  mode: DateMode,
+  customStart: string,
+  customEnd: string,
+): { start: Date | null; end: Date | null } {
   const now = new Date();
   switch (mode) {
     case "month":
-      return new Date(now.getFullYear(), now.getMonth(), 1);
+      return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: null };
     case "quarter": {
       const qStartMonth = Math.floor(now.getMonth() / 3) * 3;
-      return new Date(now.getFullYear(), qStartMonth, 1);
+      return { start: new Date(now.getFullYear(), qStartMonth, 1), end: null };
     }
     case "fy":
-      // Fiscal year runs Oct 1 – Sep 30.
-      return now.getMonth() >= 9
-        ? new Date(now.getFullYear(), 9, 1)
-        : new Date(now.getFullYear() - 1, 9, 1);
+      return {
+        start:
+          now.getMonth() >= 9
+            ? new Date(now.getFullYear(), 9, 1)
+            : new Date(now.getFullYear() - 1, 9, 1),
+        end: null,
+      };
+    case "custom":
+      return {
+        start: customStart ? new Date(customStart) : null,
+        end: customEnd ? new Date(customEnd + "T23:59:59") : null,
+      };
     default:
-      return null;
+      return { start: null, end: null };
   }
 }
 
@@ -138,22 +149,26 @@ export default function Board({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dateMode, setDateMode] = useState<DateMode>("all");
   const [archiveMode, setArchiveMode] = useState<ArchiveMode>("active");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
 
   const visible = useMemo(() => {
-    const start = periodStart(dateMode);
+    const { start, end } = periodBounds(dateMode, customStart, customEnd);
     return projects.filter((p) => {
       if (archiveMode === "active" && p.archived) return false;
       if (archiveMode === "archived" && !p.archived) return false;
-      if (start) {
+      if (start || end) {
         if (!p.rfiReceivedDate) return false;
-        if (new Date(p.rfiReceivedDate) < start) return false;
+        const d = new Date(p.rfiReceivedDate);
+        if (start && d < start) return false;
+        if (end && d > end) return false;
       }
       return true;
     });
-  }, [projects, dateMode, archiveMode]);
+  }, [projects, dateMode, archiveMode, customStart, customEnd]);
 
   async function moveProject(id: string, stage: PipelineStageValue) {
     const prev = projects;
@@ -201,8 +216,26 @@ export default function Board({
             <option value="month">This month</option>
             <option value="quarter">This quarter</option>
             <option value="fy">This fiscal year (Oct–Sep)</option>
+            <option value="custom">Custom range…</option>
           </select>
         </label>
+        {dateMode === "custom" && (
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              className="input h-8 py-1 text-xs"
+              value={customStart}
+              onChange={(e) => setCustomStart(e.target.value)}
+            />
+            <span className="text-xs text-gray-400">to</span>
+            <input
+              type="date"
+              className="input h-8 py-1 text-xs"
+              value={customEnd}
+              onChange={(e) => setCustomEnd(e.target.value)}
+            />
+          </div>
+        )}
         <label className="flex items-center gap-1.5 text-gray-600">
           <span className="text-xs font-medium text-gray-500">Show</span>
           <select

@@ -14,7 +14,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { PIPELINE_STAGES, type PipelineStageValue } from "@/lib/projects/schema";
-import { formatCurrency, formatDate, stageBadgeClass } from "@/lib/format";
+import { formatCurrency, formatDate, formatNumber, stageBadgeClass } from "@/lib/format";
 
 export interface BoardProject {
   id: string;
@@ -23,11 +23,34 @@ export interface BoardProject {
   naicsCode: string | null;
   industryDescription: string | null;
   minAcreage: number | null;
+  minBuildingSqFt: number | null;
   capexTotal: string | null;
   rfiReceivedDate: string | null;
   responseDueDate: string | null;
+  responseSubmittedDate: string | null;
+  siteVisitDate: string | null;
   archived: boolean;
   submissionCount: number;
+}
+
+// Returns the most contextually relevant date label + value for a given stage.
+function stageDate(p: BoardProject): { label: string; date: string } | null {
+  switch (p.stage) {
+    case "RFI_RECEIVED":
+    case "PENDING_INFORMATION":
+      return p.responseDueDate ? { label: "Due", date: p.responseDueDate } : null;
+    case "RFI_SUBMITTED":
+    case "SHORTLISTED":
+      if (p.responseSubmittedDate) return { label: "Submitted", date: p.responseSubmittedDate };
+      if (p.responseDueDate) return { label: "Due", date: p.responseDueDate };
+      return null;
+    case "SITE_VISIT":
+      if (p.siteVisitDate) return { label: "Site visit", date: p.siteVisitDate };
+      if (p.responseSubmittedDate) return { label: "Submitted", date: p.responseSubmittedDate };
+      return null;
+    default:
+      return null;
+  }
 }
 
 type DateMode = "all" | "month" | "quarter" | "fy" | "custom";
@@ -88,14 +111,23 @@ function Card({ project }: { project: BoardProject }) {
         </button>
       </div>
       <div className="mt-1 space-y-0.5 text-[11px] leading-tight text-gray-500">
-        {project.naicsCode && <div>NAICS {project.naicsCode}</div>}
-        <div>
-          {project.minAcreage ? `${project.minAcreage} ac` : "— ac"} ·{" "}
-          {formatCurrency(project.capexTotal)}
-        </div>
-        {project.responseDueDate && (
-          <div>Due {formatDate(project.responseDueDate)}</div>
+        {project.industryDescription && (
+          <div className="truncate" title={project.industryDescription}>
+            {project.industryDescription}
+          </div>
         )}
+        <div>
+          {project.minBuildingSqFt
+            ? `${formatNumber(project.minBuildingSqFt)} sf`
+            : project.minAcreage
+              ? `${project.minAcreage} ac`
+              : "—"}{" "}
+          · {formatCurrency(project.capexTotal)}
+        </div>
+        {(() => {
+          const sd = stageDate(project);
+          return sd ? <div>{sd.label} {formatDate(sd.date)}</div> : null;
+        })()}
         {project.submissionCount > 0 && (
           <div className="text-brand">
             {project.submissionCount} site

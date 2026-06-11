@@ -44,6 +44,7 @@ const UpdateProjectSchema = z.object({
   capexEquipment: nNum,
   avgWage: nNum,
   minAcreage: nNum,
+  minBuildingSqFt: nNum,
   hasFunding: z.boolean().nullable().optional(),
 
   siteLocationPreferences: z.array(z.string()).optional(),
@@ -86,6 +87,7 @@ const PASSTHROUGH = [
   "capexEquipment",
   "avgWage",
   "minAcreage",
+  "minBuildingSqFt",
   "hasFunding",
   "siteLocationPreferences",
   "requiredDeliverables",

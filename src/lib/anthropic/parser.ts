@@ -30,6 +30,8 @@ GENERAL RULES
 - Capital investment: capture total/land/building/equipment as plain numbers in USD (e.g. 1600000000, not "$1.6B").
 - avgWage: a single USD number.
 - jobPhases: one entry per phased job figure, with the count and the timeframe exactly as written (e.g. count 75, timeframe "Year One"; count 200, timeframe "3-5 years").
+- minAcreage: minimum site acreage as a plain number.
+- minBuildingSqFt: minimum building square footage required, as a plain number (e.g. 250000 for 250,000 sq ft). Extract from any statement of building size, floor space, or facility size. Leave null if not stated.
 - siteLocationPreferences: array of the stated preferences (e.g. ["Industrial Park", "Freestanding Site", "Incubator Site"]).
 - criticalCriteria: the must-have needs the RFI lists "in order of importance". Preserve that order using rank 1, 2, 3, ... These drive site selection.
 - requiredDeliverables: what the response must include (e.g. "Site Summary Spreadsheet", "RFI Response combined into one PDF").

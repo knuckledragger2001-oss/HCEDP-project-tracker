@@ -38,6 +38,7 @@ export async function createProjectFromProposal(input: SaveProjectInput) {
     avgWage: input.avgWage ?? null,
 
     minAcreage: input.minAcreage ?? null,
+    minBuildingSqFt: input.minBuildingSqFt ?? null,
     buildingSizeNeeds: input.buildingSizeNeeds ?? null,
     siteLocationPreferences: input.siteLocationPreferences ?? [],
 

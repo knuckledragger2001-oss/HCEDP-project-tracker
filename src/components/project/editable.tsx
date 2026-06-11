@@ -480,6 +480,7 @@ export function EditableInvestmentJobs(props: {
 export function EditableSiteRequirements(props: {
   projectId: string;
   minAcreage: number | null;
+  minBuildingSqFt: number | null;
   siteLocationPreferences: string[];
   buildingSizeNeeds: string | null;
   requiredDeliverables: string[];
@@ -487,6 +488,7 @@ export function EditableSiteRequirements(props: {
   const { save, saving, error } = useSectionSave(props.projectId);
   const [editing, setEditing] = useState(false);
   const [minAcreage, setMinAcreage] = useState<number | null>(props.minAcreage);
+  const [minBuildingSqFt, setMinBuildingSqFt] = useState<number | null>(props.minBuildingSqFt);
   const [prefs, setPrefs] = useState(props.siteLocationPreferences.join(", "));
   const [building, setBuilding] = useState(props.buildingSizeNeeds ?? "");
   const [deliverables, setDeliverables] = useState(
@@ -495,6 +497,7 @@ export function EditableSiteRequirements(props: {
 
   function begin() {
     setMinAcreage(props.minAcreage);
+    setMinBuildingSqFt(props.minBuildingSqFt);
     setPrefs(props.siteLocationPreferences.join(", "));
     setBuilding(props.buildingSizeNeeds ?? "");
     setDeliverables(props.requiredDeliverables.join(", "));
@@ -505,6 +508,7 @@ export function EditableSiteRequirements(props: {
   async function onSave() {
     const ok = await save({
       minAcreage,
+      minBuildingSqFt,
       buildingSizeNeeds: building || null,
       siteLocationPreferences: csv(prefs),
       requiredDeliverables: csv(deliverables),
@@ -527,6 +531,10 @@ export function EditableSiteRequirements(props: {
           <Row
             label="Min acreage"
             value={props.minAcreage ? `${props.minAcreage} ac` : "—"}
+          />
+          <Row
+            label="Min building sq ft"
+            value={props.minBuildingSqFt ? `${formatNumber(props.minBuildingSqFt)} sf` : "—"}
           />
           <Row
             label="Location prefs"
@@ -556,6 +564,9 @@ export function EditableSiteRequirements(props: {
         <div className="space-y-2">
           <GridField label="Min acreage">
             <NumberInput value={minAcreage} onChange={setMinAcreage} />
+          </GridField>
+          <GridField label="Min building sq ft">
+            <NumberInput value={minBuildingSqFt} onChange={setMinBuildingSqFt} />
           </GridField>
           <GridField label="Location preferences (comma-separated)">
             <Text value={prefs} onChange={setPrefs} />

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ParsedProject, StagedAttachment } from "@/lib/anthropic/schema";
 import { PIPELINE_STAGES, type PipelineStageValue } from "@/lib/projects/schema";
 import { LEAD_SOURCE_LABELS } from "@/lib/format";
+import { NAICS_OPTIONS, NAICS_BY_CODE } from "@/lib/naics";
 import {
   Field,
   Text,
@@ -342,9 +343,31 @@ export default function ReviewForm({
 
         <Section title="Industry & narrative">
           <Field label="NAICS code" flagged={flagged("naicsCode")}>
-            <Text value={p.naicsCode ?? ""} onChange={(v) => set("naicsCode", v)} />
+            <select
+              className="input"
+              value={p.naicsCode ?? ""}
+              onChange={(e) => {
+                const code = e.target.value;
+                const desc = code ? NAICS_BY_CODE[code] ?? null : null;
+                setP((cur) => ({
+                  ...cur,
+                  naicsCode: code || null,
+                  // Only auto-fill if the description is blank or matched the previous code
+                  industryDescription:
+                    desc && (!cur.industryDescription || cur.industryDescription === NAICS_BY_CODE[cur.naicsCode ?? ""])
+                      ? desc
+                      : cur.industryDescription,
+                }));
+              }}
+            >
+              {NAICS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </Field>
-          <Field label="Industry description">
+          <Field label="Industry description" hint="Auto-filled from NAICS — edit to be more specific">
             <Text
               value={p.industryDescription ?? ""}
               onChange={(v) => set("industryDescription", v)}
@@ -447,6 +470,9 @@ export default function ReviewForm({
         <Section title="Site requirements">
           <Field label="Minimum acreage" flagged={flagged("minAcreage")}>
             <NumberInput value={p.minAcreage ?? null} onChange={(v) => set("minAcreage", v)} />
+          </Field>
+          <Field label="Minimum building sq ft" flagged={flagged("minBuildingSqFt")}>
+            <NumberInput value={p.minBuildingSqFt ?? null} onChange={(v) => set("minBuildingSqFt", v)} />
           </Field>
           <Field label="Building size / needs">
             <Area value={p.buildingSizeNeeds ?? ""} onChange={(v) => set("buildingSizeNeeds", v)} />

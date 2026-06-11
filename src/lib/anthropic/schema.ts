@@ -92,6 +92,7 @@ export const ParsedProjectSchema = z.object({
   avgWage: nullableNumber,
 
   minAcreage: nullableNumber,
+  minBuildingSqFt: nullableNumber,
   buildingSizeNeeds: nullableString,
   siteLocationPreferences: z.array(z.string()).optional().default([]),
 

@@ -107,6 +107,7 @@ model Project {
 
   // Site requirements
   minAcreage              Float?
+  minBuildingSqFt         Float?
   buildingSizeNeeds       String? @db.Text
   siteLocationPreferences String[] // e.g. Industrial Park, Freestanding Site, Incubator
 

@@ -182,6 +182,10 @@ The app is host-agnostic (Vercel, Render, Railway, a container, …). To deploy:
 - Free-form AI reporting: a text box on the Reports page where staff type a
   plain-language question and the Claude API answers over the project/site data
   (likely via tool use against read-only queries), beyond the fixed report types
+- Submission readiness review: upload all documents being considered for a
+  project submission; the Claude API reviews them against the project's critical
+  criteria and required deliverables, returns a pass/fail assessment per
+  criterion, and suggests specific edits to strengthen the package
 - Site brochure scraper: upload a PDF marketing brochure for a site and the
   Anthropic API extracts the structured fields (acreage, sq ft, price/sq ft,
   utilities, county, address) into a draft review form before saving to the

@@ -139,6 +139,7 @@ export default async function ProjectDetailPage({
         <EditableSiteRequirements
           projectId={project.id}
           minAcreage={project.minAcreage}
+          minBuildingSqFt={project.minBuildingSqFt}
           siteLocationPreferences={project.siteLocationPreferences}
           buildingSizeNeeds={project.buildingSizeNeeds}
           requiredDeliverables={project.requiredDeliverables}

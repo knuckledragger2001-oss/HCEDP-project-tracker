@@ -16,6 +16,7 @@ export default async function SitesPage() {
         electricProvider: true,
         waterProvider: true,
         sewerProvider: true,
+        gasProvider: true,
         _count: { select: { submissions: true } },
       },
     }),
@@ -54,6 +55,8 @@ export default async function SitesPage() {
           waterProviderName: s.waterProvider?.name ?? null,
           sewerProviderId: s.sewerProviderId,
           sewerProviderName: s.sewerProvider?.name ?? null,
+          gasProviderId: s.gasProviderId,
+          gasProviderName: s.gasProvider?.name ?? null,
           submissionCount: s._count.submissions,
         }))}
       />

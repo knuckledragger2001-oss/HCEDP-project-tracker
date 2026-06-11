@@ -34,6 +34,8 @@ interface SiteRow {
   waterProviderName: string | null;
   sewerProviderId: string | null;
   sewerProviderName: string | null;
+  gasProviderId: string | null;
+  gasProviderName: string | null;
   submissionCount: number;
 }
 
@@ -59,6 +61,7 @@ export default function SitesManager({
   const electricProviders = providers.filter((p) => p.type === "ELECTRIC");
   const waterProviders = providers.filter((p) => p.type === "WATER");
   const sewerProviders = providers.filter((p) => p.type === "SEWER");
+  const gasProviders = providers.filter((p) => p.type === "GAS");
 
   // --- site form state ---
   const [name, setName] = useState("");
@@ -74,6 +77,7 @@ export default function SitesManager({
   const [electricProviderId, setElectricProviderId] = useState("");
   const [waterProviderId, setWaterProviderId] = useState("");
   const [sewerProviderId, setSewerProviderId] = useState("");
+  const [gasProviderId, setGasProviderId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -113,6 +117,7 @@ export default function SitesManager({
           electricProviderId: electricProviderId || null,
           waterProviderId: waterProviderId || null,
           sewerProviderId: sewerProviderId || null,
+          gasProviderId: gasProviderId || null,
         }),
       });
       const json = await res.json();
@@ -138,6 +143,8 @@ export default function SitesManager({
           waterProviderName: s.waterProvider?.name ?? null,
           sewerProviderId: s.sewerProviderId,
           sewerProviderName: s.sewerProvider?.name ?? null,
+          gasProviderId: s.gasProviderId,
+          gasProviderName: s.gasProvider?.name ?? null,
           submissionCount: 0,
         },
       ]);
@@ -153,6 +160,7 @@ export default function SitesManager({
       setElectricProviderId("");
       setWaterProviderId("");
       setSewerProviderId("");
+      setGasProviderId("");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -256,6 +264,7 @@ export default function SitesManager({
               <option value="ELECTRIC">Electric</option>
               <option value="WATER">Water</option>
               <option value="SEWER">Sewer</option>
+              <option value="GAS">Gas</option>
             </select>
             <input
               className="input"
@@ -427,6 +436,21 @@ export default function SitesManager({
             </select>
           </label>
           <label className="block">
+            <span className="label">Gas provider</span>
+            <select
+              className="input"
+              value={gasProviderId}
+              onChange={(e) => setGasProviderId(e.target.value)}
+            >
+              <option value="">—</option>
+              {gasProviders.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
             <span className="label">Address / GPS</span>
             <input
               className="input"
@@ -472,6 +496,7 @@ export default function SitesManager({
                         <th className="py-1 pr-3">Electric provider</th>
                         <th className="py-1 pr-3">Water provider</th>
                         <th className="py-1 pr-3">Sewer provider</th>
+                        <th className="py-1 pr-3">Gas provider</th>
                         <th className="py-1 text-right">Subs</th>
                       </tr>
                     </thead>
@@ -518,6 +543,9 @@ export default function SitesManager({
                           </td>
                           <td className="py-1 pr-3 text-gray-600">
                             {s.sewerProviderName ?? "—"}
+                          </td>
+                          <td className="py-1 pr-3 text-gray-600">
+                            {s.gasProviderName ?? "—"}
                           </td>
                           <td className="py-1 text-right text-gray-600">
                             {s.submissionCount}

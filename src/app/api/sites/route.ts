@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
       electricProvider: true,
       waterProvider: true,
       sewerProvider: true,
+      gasProvider: true,
       _count: { select: { submissions: true } },
     },
   });
@@ -45,6 +46,7 @@ const CreateSiteSchema = z.object({
   electricProviderId: z.string().nullable().optional(),
   waterProviderId: z.string().nullable().optional(),
   sewerProviderId: z.string().nullable().optional(),
+  gasProviderId: z.string().nullable().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -73,12 +75,14 @@ export async function POST(req: NextRequest) {
       electricProviderId: d.electricProviderId || null,
       waterProviderId: d.waterProviderId || null,
       sewerProviderId: d.sewerProviderId || null,
+      gasProviderId: d.gasProviderId || null,
     },
     include: {
       community: true,
       electricProvider: true,
       waterProvider: true,
       sewerProvider: true,
+      gasProvider: true,
     },
   });
   return NextResponse.json({ site }, { status: 201 });

@@ -112,7 +112,7 @@ function Card({ project }: { project: BoardProject }) {
       </div>
       <div className="mt-1 space-y-0.5 text-[11px] leading-tight text-gray-500">
         {project.industryDescription && (
-          <div className="truncate" title={project.industryDescription}>
+          <div className="break-words" title={project.industryDescription}>
             {project.industryDescription}
           </div>
         )}

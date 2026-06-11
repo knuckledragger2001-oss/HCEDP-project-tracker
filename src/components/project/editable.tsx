@@ -164,11 +164,15 @@ export function EditableHeader(props: {
           <h1 className="text-2xl font-semibold text-gray-900">
             {props.codename}
           </h1>
-          <p className="text-sm text-gray-500">
-            {props.industryDescription ?? "—"}
-            {props.naicsCode ? ` · NAICS ${props.naicsCode}` : ""}
-            {props.projectType ? ` · ${props.projectType}` : ""}
-          </p>
+          <div className="mt-1 space-y-0.5 text-sm text-gray-500">
+            <p>
+              {props.naicsCode ? `NAICS ${props.naicsCode}` : ""}
+              {props.naicsCode && props.industryDescription ? " — " : ""}
+              {props.industryDescription ??
+                (props.naicsCode ? "" : "—")}
+            </p>
+            {props.projectType && <p>{props.projectType}</p>}
+          </div>
         </div>
         <button
           className="mt-1 text-xs font-medium text-brand hover:underline"
@@ -859,10 +863,19 @@ export function EditableUtilities(props: {
                   <span className="font-medium text-gray-900">
                     {u.type.charAt(0) + u.type.slice(1).toLowerCase()}
                   </span>
-                  <span className="text-sm text-gray-700">
+                  <span className="flex items-center gap-1 text-sm text-gray-700">
                     {u.normalizedValue != null
                       ? `${formatNumber(u.normalizedValue)} ${u.normalizedUnit ?? ""}`
                       : "—"}
+                    {u.flagged && u.assumptionNote && (
+                      <span
+                        className="cursor-help text-amber-600"
+                        title={u.assumptionNote}
+                        aria-label={u.assumptionNote}
+                      >
+                        ⚠
+                      </span>
+                    )}
                   </span>
                 </div>
                 {u.rawValue && (
@@ -870,9 +883,6 @@ export function EditableUtilities(props: {
                 )}
                 {u.alternatives && (
                   <p className="text-xs text-gray-500">Alt: {u.alternatives}</p>
-                )}
-                {u.flagged && u.assumptionNote && (
-                  <p className="mt-1 text-xs text-amber-700">⚠ {u.assumptionNote}</p>
                 )}
                 {u.datapoints.length > 0 && (
                   <table className="mt-2 w-full text-xs">

@@ -140,7 +140,7 @@ export async function PATCH(
 
   const existing = await prisma.project.findUnique({
     where: { id },
-    select: { stage: true },
+    select: { stage: true, responseSubmittedDate: true },
   });
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -148,6 +148,13 @@ export async function PATCH(
 
   const d = parsed.data;
   const stageChanged = d.stage !== undefined && d.stage !== existing.stage;
+
+  // Auto-stamp response submitted date when stage first moves to RFI_SUBMITTED.
+  const autoStampSubmitted =
+    stageChanged &&
+    d.stage === "RFI_SUBMITTED" &&
+    d.responseSubmittedDate === undefined &&
+    existing.responseSubmittedDate === null;
 
   // Copy through only the scalar fields that were actually provided.
   const data: Record<string, unknown> = {};
@@ -170,6 +177,7 @@ export async function PATCH(
   for (const key of dateKeys) {
     if (d[key] !== undefined) data[key] = toDate(d[key]);
   }
+  if (autoStampSubmitted) data.responseSubmittedDate = new Date();
   if (stageChanged) {
     data.stageHistory = {
       create: {

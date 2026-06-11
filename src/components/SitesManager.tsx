@@ -223,67 +223,6 @@ export default function SitesManager({
 
   return (
     <div className="space-y-5">
-      {/* Add community + add provider */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="card p-4">
-          <h3 className="text-sm font-semibold text-gray-900">Add a community</h3>
-          {communityError && (
-            <p className="mt-1 text-sm text-red-600">{communityError}</p>
-          )}
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-            <input
-              className="input"
-              placeholder="Community name (e.g. Niederwald)"
-              value={newCommunity}
-              onChange={(e) => setNewCommunity(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addCommunity()}
-            />
-            <button
-              className="btn-secondary whitespace-nowrap"
-              onClick={addCommunity}
-              disabled={communityBusy}
-            >
-              Add community
-            </button>
-          </div>
-        </div>
-
-        <div className="card p-4">
-          <h3 className="text-sm font-semibold text-gray-900">
-            Add a utility provider
-          </h3>
-          {providerError && (
-            <p className="mt-1 text-sm text-red-600">{providerError}</p>
-          )}
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-            <select
-              className="input sm:w-32"
-              value={newProviderType}
-              onChange={(e) => setNewProviderType(e.target.value)}
-            >
-              <option value="ELECTRIC">Electric</option>
-              <option value="WATER">Water</option>
-              <option value="SEWER">Sewer</option>
-              <option value="GAS">Gas</option>
-            </select>
-            <input
-              className="input"
-              placeholder="Provider name"
-              value={newProvider}
-              onChange={(e) => setNewProvider(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addProvider()}
-            />
-            <button
-              className="btn-secondary whitespace-nowrap"
-              onClick={addProvider}
-              disabled={providerBusy}
-            >
-              Add provider
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* Add site */}
       <div className="card p-4">
         <h3 className="text-sm font-semibold text-gray-900">Add a site</h3>
@@ -559,6 +498,67 @@ export default function SitesManager({
             </div>
           );
         })}
+      </div>
+
+      {/* Add community + add provider */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="card p-4">
+          <h3 className="text-sm font-semibold text-gray-900">Add a community</h3>
+          {communityError && (
+            <p className="mt-1 text-sm text-red-600">{communityError}</p>
+          )}
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <input
+              className="input"
+              placeholder="Community name (e.g. Niederwald)"
+              value={newCommunity}
+              onChange={(e) => setNewCommunity(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addCommunity()}
+            />
+            <button
+              className="btn-secondary whitespace-nowrap"
+              onClick={addCommunity}
+              disabled={communityBusy}
+            >
+              Add community
+            </button>
+          </div>
+        </div>
+
+        <div className="card p-4">
+          <h3 className="text-sm font-semibold text-gray-900">
+            Add a utility provider
+          </h3>
+          {providerError && (
+            <p className="mt-1 text-sm text-red-600">{providerError}</p>
+          )}
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <select
+              className="input sm:w-32"
+              value={newProviderType}
+              onChange={(e) => setNewProviderType(e.target.value)}
+            >
+              <option value="ELECTRIC">Electric</option>
+              <option value="WATER">Water</option>
+              <option value="SEWER">Sewer</option>
+              <option value="GAS">Gas</option>
+            </select>
+            <input
+              className="input"
+              placeholder="Provider name"
+              value={newProvider}
+              onChange={(e) => setNewProvider(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addProvider()}
+            />
+            <button
+              className="btn-secondary whitespace-nowrap"
+              onClick={addProvider}
+              disabled={providerBusy}
+            >
+              Add provider
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

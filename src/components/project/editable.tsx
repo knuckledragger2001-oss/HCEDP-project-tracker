@@ -10,6 +10,15 @@ import {
   toDateInputValue,
 } from "@/lib/format";
 import { Text, Area, NumberInput, DateInput, Select } from "@/components/intake/fields";
+import {
+  normalizeLocation,
+  describeLocation,
+  US_STATES,
+  COUNTRIES,
+} from "@/lib/location/normalize";
+
+// Autocomplete suggestions for the location box: full state names + countries.
+const LOCATION_SUGGESTIONS = [...Object.values(US_STATES), ...COUNTRIES];
 
 const LEAD_SOURCE_OPTIONS = Object.entries(LEAD_SOURCE_LABELS).map(
   ([value, label]) => ({ value, label }),
@@ -223,14 +232,20 @@ export function EditableHeader(props: {
 
 // --- Source & dates -----------------------------------------------------------
 
+// Site visits are managed as their own list below; the single "Site visit"
+// date is derived from the earliest visit and no longer shown as a field here.
 const DATE_FIELDS: { key: string; label: string }[] = [
   { key: "rfiReceivedDate", label: "RFI received" },
   { key: "responseDueDate", label: "Response due" },
   { key: "responseSubmittedDate", label: "Response submitted" },
-  { key: "siteVisitDate", label: "Site visit" },
   { key: "projectedDecisionDate", label: "Projected decision" },
   { key: "productionStartDate", label: "Start of production" },
 ];
+
+interface SiteVisitItem {
+  date: string;
+  note: string | null;
+}
 
 export function EditableSourceDates(props: {
   projectId: string;
@@ -238,22 +253,35 @@ export function EditableSourceDates(props: {
   leadSourceOther: string | null;
   sourceContactName: string | null;
   submissionDestination: string | null;
+  companyLocationRaw: string | null;
+  companyState: string | null;
+  companyCountry: string | null;
   dates: Record<string, string | null>;
+  siteVisits: SiteVisitItem[];
 }) {
   const { save, saving, error } = useSectionSave(props.projectId);
   const [editing, setEditing] = useState(false);
   const [leadSource, setLeadSource] = useState(props.leadSource);
   const [contact, setContact] = useState(props.sourceContactName ?? "");
   const [dest, setDest] = useState(props.submissionDestination ?? "");
+  const [location, setLocation] = useState(props.companyLocationRaw ?? "");
   const [dates, setDates] = useState<Record<string, string>>({});
+  const [visits, setVisits] = useState<SiteVisitItem[]>([]);
 
   function begin() {
     setLeadSource(props.leadSource);
     setContact(props.sourceContactName ?? "");
     setDest(props.submissionDestination ?? "");
+    setLocation(props.companyLocationRaw ?? "");
     const d: Record<string, string> = {};
     for (const f of DATE_FIELDS) d[f.key] = toDateInputValue(props.dates[f.key]);
     setDates(d);
+    setVisits(
+      props.siteVisits.map((v) => ({
+        date: toDateInputValue(v.date),
+        note: v.note,
+      })),
+    );
     setEditing(true);
   }
   async function onSave() {
@@ -261,10 +289,27 @@ export function EditableSourceDates(props: {
       leadSource,
       sourceContactName: contact || null,
       submissionDestination: dest || null,
+      companyLocationRaw: location.trim() || null,
+      siteVisits: visits
+        .filter((v) => v.date)
+        .map((v) => ({ date: v.date, note: v.note?.trim() || null })),
     };
     for (const f of DATE_FIELDS) payload[f.key] = dates[f.key] || null;
     if (await save(payload)) setEditing(false);
   }
+
+  // Live preview of how the typed location resolves (city / state / country).
+  const resolved = location.trim() ? describeLocation(normalizeLocation(location)) : "";
+
+  // Read-only summary of the stored, normalized location.
+  const storedLocation =
+    props.companyLocationRaw ??
+    (describeLocation({
+      city: null,
+      state: props.companyState,
+      country: props.companyCountry,
+    }) ||
+      null);
 
   return (
     <SectionShell
@@ -284,33 +329,107 @@ export function EditableSourceDates(props: {
           />
           <Row label="Source contact" value={props.sourceContactName ?? "—"} />
           <Row label="Submit to" value={props.submissionDestination ?? "—"} />
+          <Row label="Company location" value={storedLocation || "—"} />
           {DATE_FIELDS.map((f) => (
             <Row key={f.key} label={f.label} value={formatDate(props.dates[f.key])} />
           ))}
+          <div className="mt-2 border-t border-gray-100 pt-2">
+            <p className="label">Site visits</p>
+            {props.siteVisits.length === 0 ? (
+              <p className="text-sm text-gray-400">None recorded.</p>
+            ) : (
+              <ul className="space-y-0.5 text-sm text-gray-700">
+                {props.siteVisits.map((v, i) => (
+                  <li key={i} className="flex justify-between gap-3">
+                    <span className="font-medium">{formatDate(v.date)}</span>
+                    {v.note && <span className="text-right text-gray-500">{v.note}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </>
       ) : (
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          <GridField label="Lead source">
-            <Select
-              value={leadSource}
-              onChange={setLeadSource}
-              options={LEAD_SOURCE_OPTIONS}
-            />
-          </GridField>
-          <GridField label="Source contact">
-            <Text value={contact} onChange={setContact} />
-          </GridField>
-          <GridField label="Submit to">
-            <Text value={dest} onChange={setDest} />
-          </GridField>
-          {DATE_FIELDS.map((f) => (
-            <GridField key={f.key} label={f.label}>
-              <DateInput
-                value={dates[f.key] ?? ""}
-                onChange={(v) => setDates((c) => ({ ...c, [f.key]: v }))}
+        <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <GridField label="Lead source">
+              <Select
+                value={leadSource}
+                onChange={setLeadSource}
+                options={LEAD_SOURCE_OPTIONS}
               />
             </GridField>
-          ))}
+            <GridField label="Source contact">
+              <Text value={contact} onChange={setContact} />
+            </GridField>
+            <GridField label="Submit to">
+              <Text value={dest} onChange={setDest} />
+            </GridField>
+            <GridField label="Company location">
+              <input
+                className="input"
+                list="company-location-suggestions"
+                placeholder="e.g. Chicago, IL or Germany"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+              />
+              <datalist id="company-location-suggestions">
+                {LOCATION_SUGGESTIONS.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+              {resolved && (
+                <span className="mt-1 block text-xs text-gray-400">→ {resolved}</span>
+              )}
+            </GridField>
+            {DATE_FIELDS.map((f) => (
+              <GridField key={f.key} label={f.label}>
+                <DateInput
+                  value={dates[f.key] ?? ""}
+                  onChange={(v) => setDates((c) => ({ ...c, [f.key]: v }))}
+                />
+              </GridField>
+            ))}
+          </div>
+          <div className="border-t border-gray-100 pt-2">
+            <span className="label">Site visits</span>
+            {visits.map((v, i) => (
+              <div key={i} className="mb-1 flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  className="input w-40"
+                  value={v.date}
+                  onChange={(e) =>
+                    setVisits((cur) =>
+                      cur.map((x, j) => (j === i ? { ...x, date: e.target.value } : x)),
+                    )
+                  }
+                />
+                <input
+                  className="input flex-1"
+                  placeholder="note (who attended / outcome)"
+                  value={v.note ?? ""}
+                  onChange={(e) =>
+                    setVisits((cur) =>
+                      cur.map((x, j) => (j === i ? { ...x, note: e.target.value } : x)),
+                    )
+                  }
+                />
+                <button
+                  className="text-xs text-red-500 hover:underline"
+                  onClick={() => setVisits((cur) => cur.filter((_, j) => j !== i))}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              className="text-xs text-brand hover:underline"
+              onClick={() => setVisits((cur) => [...cur, { date: "", note: "" }])}
+            >
+              + Add site visit
+            </button>
+          </div>
         </div>
       )}
     </SectionShell>
@@ -1035,6 +1154,76 @@ export function EditableUtilities(props: {
         </div>
       )}
     </SectionShell>
+  );
+}
+
+// --- No-submission reason -----------------------------------------------------
+
+// Shown only when a project is in the "No Submission" stage. Records why we
+// chose not to respond to the RFI; feeds the no-submission reporting.
+export function EditableNoSubmissionReason(props: {
+  projectId: string;
+  noSubmissionReason: string | null;
+}) {
+  const { save, saving, error } = useSectionSave(props.projectId);
+  const [editing, setEditing] = useState(false);
+  const [reason, setReason] = useState(props.noSubmissionReason ?? "");
+
+  function begin() {
+    setReason(props.noSubmissionReason ?? "");
+    setEditing(true);
+  }
+  async function onSave() {
+    const trimmed = reason.trim();
+    if (!trimmed) return; // reason is required for this stage
+    if (await save({ noSubmissionReason: trimmed })) setEditing(false);
+  }
+
+  return (
+    <div className="card border-slate-200 bg-slate-50 p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-slate-800">
+          Reason for not submitting
+        </h3>
+        {editing ? (
+          <div className="flex gap-2">
+            <button
+              className="text-xs text-gray-500 hover:underline"
+              onClick={() => setEditing(false)}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              className="text-xs font-medium text-brand hover:underline"
+              onClick={onSave}
+              disabled={saving}
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        ) : (
+          <button
+            className="text-xs font-medium text-brand hover:underline"
+            onClick={begin}
+          >
+            Edit
+          </button>
+        )}
+      </div>
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      <div className="mt-2">
+        {!editing ? (
+          <p className="text-sm text-slate-700">
+            {props.noSubmissionReason || (
+              <span className="text-gray-400">No reason recorded.</span>
+            )}
+          </p>
+        ) : (
+          <Area value={reason} onChange={setReason} rows={3} />
+        )}
+      </div>
+    </div>
   );
 }
 

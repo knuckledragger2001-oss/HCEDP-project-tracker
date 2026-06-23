@@ -20,8 +20,15 @@ enum PipelineStage {
   RFI_SUBMITTED
   SHORTLISTED
   SITE_VISIT
+  IN_NEGOTIATIONS
   WON
   LOST
+  NO_SUBMISSION
+}
+
+enum UserRole {
+  ADMIN
+  USER
 }
 
 enum LeadSource {
@@ -89,6 +96,19 @@ model Project {
   sourceContactEmail    String?
   submissionDestination String?
 
+  // Company location. Free text is captured exactly as entered (companyLocationRaw),
+  // then normalized into structured parts so reports can group by state/country
+  // (e.g. "all Illinois projects"). companyState holds the 2-letter USPS code for
+  // US locations; companyCountry holds the normalized country name.
+  companyLocationRaw String?
+  companyCity        String?
+  companyState       String?
+  companyCountry     String?
+
+  // Reason we chose not to submit a response (required when stage = NO_SUBMISSION).
+  // Surfaced in the "no submission" reporting so we can analyze why we pass on RFIs.
+  noSubmissionReason String? @db.Text
+
   // Industry / narrative
   naicsCode           String?
   industryDescription String?
@@ -109,12 +129,12 @@ model Project {
   // Site requirements
   minAcreage              Float?
   minBuildingSqFt         Float?
-  buildingSizeNeeds       String? @db.Text
+  buildingSizeNeeds       String?  @db.Text
   siteLocationPreferences String[] // e.g. Industrial Park, Freestanding Site, Incubator
 
   // Notes
-  environmentalNotes  String? @db.Text
-  transportationNotes String? @db.Text
+  environmentalNotes   String? @db.Text
+  transportationNotes  String? @db.Text
   specialServicesNotes String? @db.Text
 
   // Required response deliverables (e.g. "Site Summary Spreadsheet", "Combined PDF")
@@ -144,18 +164,37 @@ model Project {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  stageHistory    ProjectStageEvent[]
-  jobPhases       JobPhase[]
-  utilities       UtilityRequirement[]
+  stageHistory     ProjectStageEvent[]
+  jobPhases        JobPhase[]
+  utilities        UtilityRequirement[]
   criticalCriteria CriticalCriterion[]
   qualitativeNotes ProjectQualitativeNote[]
-  attachments     Attachment[]
-  submissions     Submission[]
+  attachments      Attachment[]
+  submissions      Submission[]
+  siteVisits       SiteVisit[]
 
   @@index([stage])
   @@index([naicsCode])
   @@index([rfiReceivedDate])
   @@index([archivedAt])
+  @@index([companyState])
+  @@index([companyCountry])
+}
+
+// One recorded site visit for a project. A project can have several; each carries
+// a date and an optional note (who attended / outcome). Powers the site-visit
+// activity report (projects visited within a date range).
+model SiteVisit {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  visitDate  DateTime
+  note       String?  @db.Text
+  orderIndex Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([projectId])
+  @@index([visitDate])
 }
 
 // Timestamped record of every stage change, for win/loss progression reporting.
@@ -177,7 +216,7 @@ model JobPhase {
   projectId  String
   project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   count      Int
-  timeframe  String  // free text as written in the RFI
+  timeframe  String // free text as written in the RFI
   orderIndex Int     @default(0)
 
   @@index([projectId])
@@ -214,11 +253,11 @@ model UtilityDatapoint {
   utilityRequirementId String
   requirement          UtilityRequirement @relation(fields: [utilityRequirementId], references: [id], onDelete: Cascade)
 
-  kind   String? // "day-one" | "peak" | "ramp" | "monthly" | ...
-  label  String?
-  value  Float?
-  unit   String?
-  date   DateTime?
+  kind     String? // "day-one" | "peak" | "ramp" | "monthly" | ...
+  label    String?
+  value    Float?
+  unit     String?
+  date     DateTime?
   rawValue String?
 
   flagged        Boolean @default(false)
@@ -254,15 +293,15 @@ model ProjectQualitativeNote {
 
 // Uploaded attachment, persisted via the storage abstraction.
 model Attachment {
-  id          String   @id @default(cuid())
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  fileName    String
-  mimeType    String
-  sizeBytes   Int
-  storageKey  String // opaque key returned by the storage driver
-  kind        String   @default("attachment") // "attachment" | "rfi_email" | ...
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  storageKey String // opaque key returned by the storage driver
+  kind       String   @default("attachment") // "attachment" | "rfi_email" | ...
+  createdAt  DateTime @default(now())
 
   @@index([projectId])
 }
@@ -363,4 +402,43 @@ model Submission {
   @@index([projectId])
   @@index([siteId])
   @@index([submissionDate])
+}
+
+// ---------------------------------------------------------------------------
+// Authentication — multi-user login with roles
+// ---------------------------------------------------------------------------
+
+// An application login. The bootstrap admin is upserted from the ADMIN_EMAIL /
+// ADMIN_PASSWORD environment variables on startup; all other users are created
+// in-app by an admin. Passwords are hashed with Node's scrypt (salt + hash
+// stored together in passwordHash). General users have full app access except
+// user management; admins additionally manage users.
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique // stored lowercased
+  name         String?
+  passwordHash String
+  role         UserRole  @default(USER)
+  // When set, the user can no longer log in and existing sessions are rejected.
+  disabledAt   DateTime?
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions Session[]
+
+  @@index([email])
+}
+
+// A server-side session. The browser only holds a signed cookie carrying the
+// session id; validity, expiry, and revocation are checked against this table.
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }

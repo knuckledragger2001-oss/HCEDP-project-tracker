@@ -15,6 +15,7 @@ import {
   EditableUtilities,
   EditableQualitative,
   EditableNotes,
+  EditableNoSubmissionReason,
 } from "@/components/project/editable";
 import { formatDate } from "@/lib/format";
 import type { PipelineStageValue } from "@/lib/projects/schema";
@@ -42,6 +43,7 @@ export default async function ProjectDetailPage({
         qualitativeNotes: true,
         utilities: { include: { datapoints: { orderBy: { date: "asc" } } } },
         attachments: true,
+        siteVisits: { orderBy: { orderIndex: "asc" } },
         submissions: {
           include: { site: { include: { community: true } } },
           orderBy: { submissionDate: "desc" },
@@ -103,6 +105,14 @@ export default async function ProjectDetailPage({
             stage={project.stage as PipelineStageValue}
           />
         </div>
+        {project.stage === "NO_SUBMISSION" && (
+          <div className="mt-3">
+            <EditableNoSubmissionReason
+              projectId={project.id}
+              noSubmissionReason={project.noSubmissionReason}
+            />
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -112,14 +122,20 @@ export default async function ProjectDetailPage({
           leadSourceOther={project.leadSourceOther}
           sourceContactName={project.sourceContactName}
           submissionDestination={project.submissionDestination}
+          companyLocationRaw={project.companyLocationRaw}
+          companyState={project.companyState}
+          companyCountry={project.companyCountry}
           dates={{
             rfiReceivedDate: iso(project.rfiReceivedDate),
             responseDueDate: iso(project.responseDueDate),
             responseSubmittedDate: iso(project.responseSubmittedDate),
-            siteVisitDate: iso(project.siteVisitDate),
             projectedDecisionDate: iso(project.projectedDecisionDate),
             productionStartDate: iso(project.productionStartDate),
           }}
+          siteVisits={project.siteVisits.map((v) => ({
+            date: v.visitDate.toISOString(),
+            note: v.note,
+          }))}
         />
 
         <EditableInvestmentJobs

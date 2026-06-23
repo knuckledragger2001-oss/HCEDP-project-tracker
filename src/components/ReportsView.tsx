@@ -13,6 +13,7 @@ import type {
   LeadSourceReport,
   ProviderActivityReport,
   QuarterlyReport,
+  SiteVisitReport,
 } from "@/lib/reports/data";
 
 interface CommunityLite {
@@ -29,7 +30,8 @@ type ReportKind =
   | "city-activity"
   | "quarterly"
   | "provider-activity"
-  | "lead-source";
+  | "lead-source"
+  | "site-visits";
 
 function quarterOptions(): string[] {
   const now = new Date();
@@ -75,9 +77,11 @@ export default function ReportsView({
   const [leadSource, setLeadSource] = useState<LeadSourceReport | null>(null);
   const [providerActivity, setProviderActivity] =
     useState<ProviderActivityReport | null>(null);
+  const [siteVisits, setSiteVisits] = useState<SiteVisitReport | null>(null);
 
-  // Lead Source is project-level, so community/provider filters do not apply.
-  const submissionScoped = kind !== "lead-source";
+  // Lead Source and Site Visits are project-level, so community/provider
+  // filters do not apply.
+  const submissionScoped = kind !== "lead-source" && kind !== "site-visits";
 
   const query = useMemo(() => {
     const p = new URLSearchParams();
@@ -121,6 +125,7 @@ export default function ReportsView({
       setQuarterly(kind === "quarterly" ? json : null);
       setLeadSource(kind === "lead-source" ? json : null);
       setProviderActivity(kind === "provider-activity" ? json : null);
+      setSiteVisits(kind === "site-visits" ? json : null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -138,7 +143,8 @@ export default function ReportsView({
     (kind === "city-activity" && city) ||
     (kind === "quarterly" && quarterly) ||
     (kind === "provider-activity" && providerActivity) ||
-    (kind === "lead-source" && leadSource);
+    (kind === "lead-source" && leadSource) ||
+    (kind === "site-visits" && siteVisits);
 
   const tab = (k: ReportKind, label: string) => (
     <button
@@ -158,6 +164,7 @@ export default function ReportsView({
           {tab("quarterly", "Quarterly Summary")}
           {tab("provider-activity", "Provider Activity")}
           {tab("lead-source", "Lead Source")}
+          {tab("site-visits", "Site Visits")}
         </div>
 
         {kind === "provider-activity" && (
@@ -299,6 +306,13 @@ export default function ReportsView({
             receipt date. Community and provider filters do not apply.
           </p>
         )}
+        {kind === "site-visits" && (
+          <p className="text-xs text-gray-400">
+            Site Visits lists projects visited within the selected date range
+            (the date filter applies to the visit date). Community and provider
+            filters do not apply.
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
           <button className="btn-primary" onClick={run} disabled={loading}>
@@ -330,6 +344,61 @@ export default function ReportsView({
       )}
       {kind === "lead-source" && leadSource && (
         <LeadSourceResult report={leadSource} />
+      )}
+      {kind === "site-visits" && siteVisits && (
+        <SiteVisitResult report={siteVisits} />
+      )}
+    </div>
+  );
+}
+
+function SiteVisitResult({ report }: { report: SiteVisitReport }) {
+  return (
+    <div className="space-y-4">
+      <FilterEcho f={report.filters} />
+      <p className="text-sm text-gray-600">
+        {report.totals.projects} project
+        {report.totals.projects === 1 ? "" : "s"} · {report.totals.visits} site
+        visit{report.totals.visits === 1 ? "" : "s"}
+      </p>
+      {report.rows.length === 0 ? (
+        <p className="text-sm text-gray-400">
+          No site visits match these filters.
+        </p>
+      ) : (
+        report.rows.map((r) => (
+          <div key={r.projectId} className="card p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-900">
+                {r.codename}
+                <span className="ml-2 text-xs font-normal text-gray-500">
+                  {STAGE_LABELS[r.stage] ?? r.stage}
+                  {r.naicsCode ? ` · NAICS ${r.naicsCode}` : ""}
+                  {r.companyLocation ? ` · ${r.companyLocation}` : ""}
+                </span>
+              </h3>
+              <span className="badge bg-gray-100 text-gray-600">
+                {r.visits.length} visit{r.visits.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <table className="mt-2 w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-400">
+                  <th className="py-1">Visit date</th>
+                  <th className="py-1">Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.visits.map((v, i) => (
+                  <tr key={i} className="border-t border-gray-100">
+                    <td className="py-1 text-gray-900">{formatDate(v.date)}</td>
+                    <td className="py-1 text-gray-600">{v.note ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))
       )}
     </div>
   );

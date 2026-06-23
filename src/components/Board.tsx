@@ -61,6 +61,7 @@ function stageDate(p: BoardProject): { label: string; date: string } | null {
       if (p.responseDueDate) return { label: "Due", date: p.responseDueDate };
       return null;
     case "SITE_VISIT":
+    case "IN_NEGOTIATIONS":
       if (p.siteVisitDate) return { label: "Site visit", date: p.siteVisitDate };
       if (p.responseSubmittedDate) return { label: "Submitted", date: p.responseSubmittedDate };
       return null;
@@ -231,13 +232,30 @@ export default function Board({
   }, [projects, dateMode, archiveMode, customStart, customEnd]);
 
   async function moveProject(id: string, stage: PipelineStageValue) {
+    // Moving into "No Submission" requires recording why we chose not to submit.
+    let noSubmissionReason: string | undefined;
+    if (stage === "NO_SUBMISSION") {
+      const reason = window.prompt(
+        "Why did we choose not to submit for this project?",
+      );
+      if (reason === null) return; // cancelled — leave the card where it was
+      const trimmed = reason.trim();
+      if (!trimmed) {
+        alert("A reason is required to move a project to No Submission.");
+        return;
+      }
+      noSubmissionReason = trimmed;
+    }
+
     const prev = projects;
     setProjects((cur) => cur.map((p) => (p.id === id ? { ...p, stage } : p)));
     try {
       const res = await fetch(`/api/projects/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage }),
+        body: JSON.stringify(
+          noSubmissionReason ? { stage, noSubmissionReason } : { stage },
+        ),
       });
       if (!res.ok) throw new Error("Failed");
     } catch {
@@ -314,7 +332,7 @@ export default function Board({
       </div>
 
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9">
           {PIPELINE_STAGES.map((s) => (
             <Column
               key={s.value}

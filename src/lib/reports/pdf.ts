@@ -11,6 +11,7 @@ import {
   type LeadSourceReport,
   type ProviderActivityReport,
   type QuarterlyReport,
+  type SiteVisitReport,
   type ReportFilterLabels,
 } from "@/lib/reports/data";
 import { STAGE_LABELS, SUBMISSION_STATUS_LABELS } from "@/lib/format";
@@ -290,6 +291,61 @@ export async function leadSourcePdf(
   return toBuffer({
     pageMargins: [30, 40, 30, 40],
     pageOrientation: "landscape",
+    content,
+    styles,
+    defaultStyle: { font: "Roboto", fontSize: 9 },
+  });
+}
+
+export async function siteVisitPdf(report: SiteVisitReport): Promise<Buffer> {
+  const content: Content[] = [
+    ...header("Site Visit Activity", report.filters),
+  ];
+  content.push({
+    text: `${report.totals.projects} project${report.totals.projects === 1 ? "" : "s"} · ${report.totals.visits} site visit${report.totals.visits === 1 ? "" : "s"}`,
+    style: "meta",
+  });
+
+  if (report.rows.length === 0) {
+    content.push({
+      text: "No site visits match these filters.",
+      style: "empty",
+    });
+  }
+
+  for (const r of report.rows) {
+    content.push({ text: r.codename, style: "project" });
+    const metaParts = [
+      STAGE_LABELS[r.stage] ?? r.stage,
+      r.naicsCode ? `NAICS ${r.naicsCode}` : null,
+      r.companyLocation,
+    ].filter(Boolean);
+    content.push({ text: metaParts.join("  ·  "), style: "meta" });
+    content.push({
+      table: {
+        headerRows: 1,
+        widths: ["auto", "*"],
+        body: [
+          [
+            { text: "Visit date", style: "th" },
+            { text: "Note", style: "th" },
+          ],
+          ...r.visits.map((v): TableCell[] => [
+            {
+              text: new Date(v.date).toLocaleDateString("en-US"),
+              style: "td",
+            },
+            { text: v.note ?? "—", style: "td" },
+          ]),
+        ],
+      },
+      layout: "lightHorizontalLines",
+      margin: [0, 2, 0, 4] as [number, number, number, number],
+    });
+  }
+
+  return toBuffer({
+    pageMargins: [40, 40, 40, 40],
     content,
     styles,
     defaultStyle: { font: "Roboto", fontSize: 9 },

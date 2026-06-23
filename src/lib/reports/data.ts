@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { LEAD_SOURCE_LABELS } from "@/lib/format";
+import { describeLocation } from "@/lib/location/normalize";
 
 // Filters shared by the reports. All optional; absent = no constraint.
 export interface ReportFilters {
@@ -436,6 +437,101 @@ export async function quarterlySummaryReport(
     filters: await describeFilters(f),
     rows,
     totals,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Report 4 — Site Visit Activity
+// Projects that had one or more site visits within the date range, with the
+// visit dates and notes. The date filter applies to the visit date.
+// ---------------------------------------------------------------------------
+
+export interface SiteVisitEntry {
+  date: string; // ISO
+  note: string | null;
+}
+export interface SiteVisitRow {
+  projectId: string;
+  codename: string;
+  stage: string;
+  naicsCode: string | null;
+  industryDescription: string | null;
+  companyLocation: string | null;
+  visits: SiteVisitEntry[];
+}
+export interface SiteVisitReport {
+  kind: "site-visits";
+  filters: ReportFilterLabels;
+  rows: SiteVisitRow[];
+  totals: { projects: number; visits: number };
+}
+
+export async function siteVisitReport(
+  f: ReportFilters,
+): Promise<SiteVisitReport> {
+  // Date filter applies to the visit date.
+  const visitWhere: Prisma.SiteVisitWhereInput = {};
+  if (f.from || f.to) {
+    visitWhere.visitDate = {};
+    if (f.from) visitWhere.visitDate.gte = f.from;
+    if (f.to) visitWhere.visitDate.lte = f.to;
+  }
+
+  const projectWhere: Prisma.ProjectWhereInput = {
+    archivedAt: null,
+    siteVisits: { some: visitWhere },
+  };
+  if (f.naicsCode) projectWhere.naicsCode = f.naicsCode;
+  if (f.stage) projectWhere.stage = f.stage as Prisma.ProjectWhereInput["stage"];
+
+  const projects = await prisma.project.findMany({
+    where: projectWhere,
+    orderBy: { codename: "asc" },
+    select: {
+      id: true,
+      codename: true,
+      stage: true,
+      naicsCode: true,
+      industryDescription: true,
+      companyLocationRaw: true,
+      companyState: true,
+      companyCountry: true,
+      siteVisits: {
+        where: visitWhere,
+        orderBy: { visitDate: "asc" },
+        select: { visitDate: true, note: true },
+      },
+    },
+  });
+
+  const rows: SiteVisitRow[] = projects.map((p) => ({
+    projectId: p.id,
+    codename: p.codename,
+    stage: p.stage,
+    naicsCode: p.naicsCode,
+    industryDescription: p.industryDescription,
+    companyLocation:
+      p.companyLocationRaw ??
+      (describeLocation({
+        city: null,
+        state: p.companyState,
+        country: p.companyCountry,
+      }) ||
+        null),
+    visits: p.siteVisits.map((v) => ({
+      date: v.visitDate.toISOString(),
+      note: v.note,
+    })),
+  }));
+
+  return {
+    kind: "site-visits",
+    filters: await describeFilters(f),
+    rows,
+    totals: {
+      projects: rows.length,
+      visits: rows.reduce((n, r) => n + r.visits.length, 0),
+    },
   };
 }
 

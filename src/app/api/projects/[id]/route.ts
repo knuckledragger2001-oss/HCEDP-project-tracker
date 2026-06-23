@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { PipelineStageEnum } from "@/lib/projects/schema";
+import { normalizeLocation } from "@/lib/location/normalize";
 import {
   LeadSourceEnum,
   JobPhaseSchema,
@@ -20,6 +21,7 @@ const nNum = z.number().nullable().optional();
 const UpdateProjectSchema = z.object({
   stage: PipelineStageEnum.optional(),
   stageNote: z.string().optional(),
+  noSubmissionReason: nStr,
   archived: z.boolean().optional(),
 
   codename: z.string().optional(),
@@ -50,11 +52,16 @@ const UpdateProjectSchema = z.object({
   siteLocationPreferences: z.array(z.string()).optional(),
   requiredDeliverables: z.array(z.string()).optional(),
 
+  companyLocationRaw: nStr,
+
   // Relational collections — when present, replace the whole set.
   jobPhases: z.array(JobPhaseSchema).optional(),
   criticalCriteria: z.array(CriticalCriterionSchema).optional(),
   qualitativeNotes: z.array(QualitativeNoteSchema).optional(),
   utilities: z.array(UtilityRequirementSchema).optional(),
+  siteVisits: z
+    .array(z.object({ date: z.string(), note: z.string().nullable().optional() }))
+    .optional(),
 
   rfiReceivedDate: nullableDate,
   responseSubmittedDate: nullableDate,
@@ -89,6 +96,7 @@ const PASSTHROUGH = [
   "minAcreage",
   "minBuildingSqFt",
   "hasFunding",
+  "noSubmissionReason",
   "siteLocationPreferences",
   "requiredDeliverables",
 ] as const;
@@ -142,7 +150,7 @@ export async function PATCH(
 
   const existing = await prisma.project.findUnique({
     where: { id },
-    select: { stage: true, responseSubmittedDate: true },
+    select: { stage: true, responseSubmittedDate: true, noSubmissionReason: true },
   });
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -150,6 +158,18 @@ export async function PATCH(
 
   const d = parsed.data;
   const stageChanged = d.stage !== undefined && d.stage !== existing.stage;
+
+  // Moving into "No Submission" requires a reason — either supplied in this
+  // request or already recorded on the project.
+  if (stageChanged && d.stage === "NO_SUBMISSION") {
+    const reason = d.noSubmissionReason ?? existing.noSubmissionReason;
+    if (!reason || !reason.trim()) {
+      return NextResponse.json(
+        { error: "A reason is required to move a project to No Submission." },
+        { status: 400 },
+      );
+    }
+  }
 
   // Auto-stamp response submitted date when stage first moves to RFI_SUBMITTED.
   const autoStampSubmitted =
@@ -246,6 +266,36 @@ export async function PATCH(
         },
       })),
     };
+  }
+
+  // Site visits: replace the whole set when provided, and keep the legacy
+  // single siteVisitDate in sync (earliest visit) for board/stage date logic.
+  if (d.siteVisits !== undefined) {
+    const visits = d.siteVisits
+      .map((v) => ({ date: toDate(v.date), note: v.note ?? null }))
+      .filter((v): v is { date: Date; note: string | null } => v.date != null);
+    data.siteVisits = {
+      deleteMany: {},
+      create: visits.map((v, i) => ({
+        visitDate: v.date,
+        note: v.note,
+        orderIndex: i,
+      })),
+    };
+    data.siteVisitDate = visits.length
+      ? new Date(Math.min(...visits.map((v) => v.date.getTime())))
+      : null;
+  }
+
+  // Company location: store the raw text and the normalized parts so reports
+  // can group by state/country.
+  if (d.companyLocationRaw !== undefined) {
+    const raw = d.companyLocationRaw?.trim() || null;
+    const norm = raw ? normalizeLocation(raw) : { city: null, state: null, country: null };
+    data.companyLocationRaw = raw;
+    data.companyCity = norm.city;
+    data.companyState = norm.state;
+    data.companyCountry = norm.country;
   }
 
   const project = await prisma.project.update({

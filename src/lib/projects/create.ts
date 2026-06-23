@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import type { SaveProjectInput } from "./schema";
+import { normalizeLocation } from "@/lib/location/normalize";
 
 function toDate(value: string | null | undefined): Date | null {
   if (!value) return null;
@@ -13,6 +14,11 @@ function toDate(value: string | null | undefined): Date | null {
 export async function createProjectFromProposal(input: SaveProjectInput) {
   const stage = input.stage ?? "RFI_RECEIVED";
 
+  const locationRaw = input.companyLocationRaw?.trim() || null;
+  const location = locationRaw
+    ? normalizeLocation(locationRaw)
+    : { city: null, state: null, country: null };
+
   const data: Prisma.ProjectCreateInput = {
     codename: input.codename?.trim() || "Untitled Project",
     stage,
@@ -22,6 +28,11 @@ export async function createProjectFromProposal(input: SaveProjectInput) {
     sourceContactName: input.sourceContactName ?? null,
     sourceContactEmail: input.sourceContactEmail ?? null,
     submissionDestination: input.submissionDestination ?? null,
+
+    companyLocationRaw: locationRaw,
+    companyCity: location.city,
+    companyState: location.state,
+    companyCountry: location.country,
 
     naicsCode: input.naicsCode ?? null,
     industryDescription: input.industryDescription ?? null,

@@ -4,9 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PIPELINE_STAGES, type PipelineStageValue } from "@/lib/projects/schema";
 
-// Progress stages run left-to-right; LOST is a terminal off-track outcome.
-const PROGRESS = PIPELINE_STAGES.filter((s) => s.value !== "LOST");
+// Progress stages run left-to-right; LOST and NO_SUBMISSION are terminal
+// off-track outcomes shown as separate buttons.
+const TERMINAL: PipelineStageValue[] = ["LOST", "NO_SUBMISSION"];
+const PROGRESS = PIPELINE_STAGES.filter((s) => !TERMINAL.includes(s.value));
 const LOST = PIPELINE_STAGES.find((s) => s.value === "LOST")!;
+const NO_SUBMISSION = PIPELINE_STAGES.find((s) => s.value === "NO_SUBMISSION")!;
 
 // Gradient endpoints: a light green that deepens to saturated brand green.
 const FROM: [number, number, number] = [191, 224, 205]; // #BFE0CD
@@ -44,9 +47,28 @@ export default function StageProgress({
 
   const currentIndex = PROGRESS.findIndex((s) => s.value === stage);
   const isLost = stage === "LOST";
+  const isNoSubmission = stage === "NO_SUBMISSION";
 
   async function change(next: PipelineStageValue) {
     if (next === stage || saving) return;
+
+    // Moving into "No Submission" requires recording why we chose not to submit.
+    const body: { stage: PipelineStageValue; noSubmissionReason?: string } = {
+      stage: next,
+    };
+    if (next === "NO_SUBMISSION") {
+      const reason = window.prompt(
+        "Why did we choose not to submit for this project?",
+      );
+      if (reason === null) return; // cancelled
+      const trimmed = reason.trim();
+      if (!trimmed) {
+        alert("A reason is required to move a project to No Submission.");
+        return;
+      }
+      body.noSubmissionReason = trimmed;
+    }
+
     const prev = stage;
     setStage(next);
     setSaving(true);
@@ -54,7 +76,7 @@ export default function StageProgress({
       const res = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage: next }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
       router.refresh();
@@ -70,8 +92,9 @@ export default function StageProgress({
     <div className="flex flex-wrap items-center gap-1">
       <div className="flex items-stretch">
         {PROGRESS.map((s, i) => {
-          const reached = !isLost && i <= currentIndex;
-          const isCurrent = !isLost && i === currentIndex;
+          const offTrack = isLost || isNoSubmission;
+          const reached = !offTrack && i <= currentIndex;
+          const isCurrent = !offTrack && i === currentIndex;
           const bg = reached ? gradientColor(i, PROGRESS.length) : "#eef0f2";
           const fg = reached ? textColor(i, PROGRESS.length) : "#9aa1a9";
           return (
@@ -111,6 +134,21 @@ export default function StageProgress({
         }}
       >
         {LOST.label}
+      </button>
+
+      <button
+        type="button"
+        disabled={saving}
+        onClick={() => change(NO_SUBMISSION.value as PipelineStageValue)}
+        title="We chose not to submit"
+        className="ml-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-wait"
+        style={{
+          backgroundColor: isNoSubmission ? "#475569" : "#f3f4f6",
+          color: isNoSubmission ? "#ffffff" : "#9aa1a9",
+          boxShadow: isNoSubmission ? "inset 0 0 0 2px rgba(0,0,0,0.18)" : "none",
+        }}
+      >
+        {NO_SUBMISSION.label}
       </button>
     </div>
   );

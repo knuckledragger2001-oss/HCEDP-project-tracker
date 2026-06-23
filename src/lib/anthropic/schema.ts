@@ -77,6 +77,10 @@ export const ParsedProjectSchema = z.object({
   sourceContactEmail: nullableString,
   submissionDestination: nullableString,
 
+  // The company's location as written in the RFI (e.g. "Chicago, IL",
+  // "Illinois", "Germany"). Normalized into city/state/country on save.
+  companyLocationRaw: nullableString,
+
   naicsCode: nullableString,
   industryDescription: nullableString,
   narrative: nullableString,

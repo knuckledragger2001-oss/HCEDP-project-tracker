@@ -19,9 +19,11 @@ feature code.
   criteria, dates, deliverables, qualitative notes). **Nothing is saved
   automatically** — the parsed proposal is shown in an editable form for review
   first, and any value the parser had to assume or convert is flagged.
-- **Pipeline board** — Projects move through seven stages (RFI Received →
-  Pending Information → RFI Submitted → Shortlisted → Site Visit → Won / Lost)
-  by drag-and-drop or a dropdown. Every stage change is timestamped in history.
+- **Pipeline board** — Projects move through nine stages (RFI Received →
+  Pending Information → RFI Submitted → Shortlisted → Site Visit → In
+  Negotiations → Won / Lost, plus No Submission for RFIs we deliberately decline
+  — which prompts for a reason) by drag-and-drop or a dropdown. Every stage
+  change is timestamped in history.
 - **Sites & submissions** — Maintain a list of real-estate sites grouped by the
   nine communities, and record which sites were submitted for each project.
 - **Reports** — Two partner-facing reports, each filterable (community, date or
@@ -97,22 +99,38 @@ Then open <http://localhost:3000>.
 | `ANTHROPIC_MODEL_HIGH_EFFORT` | no       | Stronger model for difficult docs (default `claude-opus-4-8`)            |
 | `STORAGE_DRIVER`              | no       | `local` (default). Future: `s3` / `blob`                                 |
 | `STORAGE_LOCAL_DIR`           | no       | Where local uploads are written (default `./storage-uploads`)            |
-| `BASIC_AUTH_USER`             | no       | Username for the shared-password login gate (see below)                  |
-| `BASIC_AUTH_PASS`             | no       | Password for the shared-password login gate                              |
+| `ADMIN_EMAIL`                 | yes\*\*  | Email of the bootstrap admin account (see Authentication below)          |
+| `ADMIN_PASSWORD`              | yes\*\*  | Password for the bootstrap admin; rotating it rotates the admin password |
 
 \* Without an API key, intake falls back to a blank, fully editable form so RFIs
 can still be entered and saved by hand.
 
+\*\* `ADMIN_EMAIL` / `ADMIN_PASSWORD` are required to be able to log in. If they
+are unset, no account exists and the login page will reject everyone.
+
 The API key is read **only** from the environment (`src/lib/config.ts`). It is
 never hardcoded, and `.env` is git-ignored.
 
-### Login gate
+### Authentication
 
-The app uses HTTP Basic Auth (browser-native login prompt). To enable it, set
-`BASIC_AUTH_USER` and `BASIC_AUTH_PASS` in your Railway environment variables
-(or `.env` locally). If either variable is unset, the gate is disabled — useful
-for local development. In Railway, add both variables in the app service
-Variables tab, then redeploy.
+The app uses multi-user login with two roles:
+
+- **Admin** — full access plus the **Users** page to add, disable, re-enable,
+  delete teammates, change roles, and reset passwords.
+- **User** — full access to the app except user management.
+
+The **bootstrap admin** is (re)created on every server start from the
+`ADMIN_EMAIL` / `ADMIN_PASSWORD` environment variables, so the master login
+always lives in the host environment (Railway). To set up: add both variables in
+the Railway service Variables tab and redeploy. Then sign in as that admin and
+create the rest of your team from the in-app **Users** page — no redeploy needed,
+and it works from any browser or phone. If you ever get locked out, change
+`ADMIN_PASSWORD` in Railway and redeploy to reset it.
+
+Under the hood: passwords are hashed with Node's built-in `scrypt`; sessions are
+stored in the database and referenced by an http-only cookie; the route gate
+lives in `src/proxy.ts` with the authoritative check in the root layout via
+`src/lib/auth/session.ts`.
 
 ---
 
@@ -177,7 +195,6 @@ The app is host-agnostic (Vercel, Render, Railway, a container, …). To deploy:
 
 - Generate RFI Response documents from stored project data
 - Site database sourced from LoopNet and automated site-search matching
-- Authentication, roles, and multi-user support
 - Inbound Outlook task that posts to the same internal intake endpoint
 - Free-form AI reporting: a text box on the Reports page where staff type a
   plain-language question and the Claude API answers over the project/site data
@@ -196,3 +213,18 @@ The app is host-agnostic (Vercel, Render, Railway, a container, …). To deploy:
   Anthropic API extracts the structured fields (acreage, sq ft, price/sq ft,
   utilities, county, address) into a draft review form before saving to the
   sites database — same review-before-save pattern as RFI intake
+- Historical data import: bulk-import a spreadsheet of past projects carrying
+  the same fields the RFI emails provide, plus extra columns (which sites were
+  submitted, whether site visits occurred, outcomes). Column-mapping step and a
+  review-before-commit pass, reusing the existing project-create path.
+- Project detail load performance: the project detail page is slow to open from
+  the pipeline view. Investigate query/payload shape (N+1 relations, full
+  payload vs. summary) and add caching or a lighter list→detail fetch.
+- Leads module: a lightweight pre-project "leads" entity with the ability to
+  convert a qualified lead into a full project (carrying over known fields).
+  Scope to be articulated further.
+- Comprehensive roll-up dashboard: a Salesforce-style at-a-glance dashboard for
+  stakeholder/investor meetings. Configurable by date range and other filters,
+  showing conversion rate, RFIs received by month, a Sankey diagram of project
+  outcomes, and summary stats on capex, wages, jobs, acreage, industries, lead
+  source, and number of site visits. Exportable to PDF.

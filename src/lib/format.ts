@@ -43,10 +43,14 @@ export function stageBadgeClass(stage: PipelineStageValue | string): string {
       return "bg-indigo-100 text-indigo-800";
     case "SITE_VISIT":
       return "bg-purple-100 text-purple-800";
+    case "IN_NEGOTIATIONS":
+      return "bg-teal-100 text-teal-800";
     case "WON":
       return "bg-green-100 text-green-800";
     case "LOST":
       return "bg-red-100 text-red-700";
+    case "NO_SUBMISSION":
+      return "bg-slate-200 text-slate-700";
     default:
       return "bg-gray-100 text-gray-700";
   }

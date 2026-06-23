@@ -7,6 +7,14 @@ import { PIPELINE_STAGES, type PipelineStageValue } from "@/lib/projects/schema"
 import { LEAD_SOURCE_LABELS } from "@/lib/format";
 import { NAICS_OPTIONS, NAICS_BY_CODE } from "@/lib/naics";
 import {
+  normalizeLocation,
+  describeLocation,
+  US_STATES,
+  COUNTRIES,
+} from "@/lib/location/normalize";
+
+const LOCATION_SUGGESTIONS = [...Object.values(US_STATES), ...COUNTRIES];
+import {
   Field,
   Text,
   Area,
@@ -339,6 +347,28 @@ export default function ReviewForm({
               onChange={(v) => set("submissionDestination", v)}
             />
           </Field>
+          <Field
+            label="Company location"
+            hint="Type a city, state, or country — it auto-matches for reporting"
+          >
+            <input
+              className="input"
+              list="company-location-suggestions"
+              placeholder="e.g. Chicago, IL or Germany"
+              value={p.companyLocationRaw ?? ""}
+              onChange={(e) => set("companyLocationRaw", e.target.value || null)}
+            />
+            <datalist id="company-location-suggestions">
+              {LOCATION_SUGGESTIONS.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+            {p.companyLocationRaw?.trim() && (
+              <span className="mt-1 block text-xs text-gray-400">
+                → {describeLocation(normalizeLocation(p.companyLocationRaw))}
+              </span>
+            )}
+          </Field>
         </Section>
 
         <Section title="Industry & narrative">
@@ -501,9 +531,6 @@ export default function ReviewForm({
             </Field>
             <Field label="Response submitted" hint="filled in when we respond">
               <DateInput value={d(p.responseSubmittedDate)} onChange={(v) => set("responseSubmittedDate", v || null)} />
-            </Field>
-            <Field label="Site visit" hint="filled in later">
-              <DateInput value={d(p.siteVisitDate)} onChange={(v) => set("siteVisitDate", v || null)} />
             </Field>
           </div>
         </Section>

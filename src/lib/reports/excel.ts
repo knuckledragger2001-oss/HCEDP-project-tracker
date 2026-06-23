@@ -4,6 +4,7 @@ import {
   type LeadSourceReport,
   type ProviderActivityReport,
   type QuarterlyReport,
+  type SiteVisitReport,
   type ReportFilterLabels,
 } from "@/lib/reports/data";
 import { STAGE_LABELS, SUBMISSION_STATUS_LABELS } from "@/lib/format";
@@ -190,6 +191,51 @@ export async function quarterlyXlsx(report: QuarterlyReport): Promise<Buffer> {
       if (len > max) max = len;
     });
     col.width = max + 2;
+  });
+
+  const out = await wb.xlsx.writeBuffer();
+  return Buffer.from(out);
+}
+
+export async function siteVisitXlsx(report: SiteVisitReport): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "HCEDP Projects Tracker";
+  const ws = wb.addWorksheet("Site Visits");
+
+  writeFilterBlock(ws, "Site Visit Activity", report.filters);
+
+  const headerRow = ws.addRow([
+    "Project",
+    "Stage",
+    "NAICS",
+    "Industry",
+    "Company location",
+    "Visit date",
+    "Note",
+  ]);
+  styleHeader(headerRow);
+
+  for (const r of report.rows) {
+    for (const v of r.visits) {
+      ws.addRow([
+        r.codename,
+        STAGE_LABELS[r.stage] ?? r.stage,
+        r.naicsCode ?? "",
+        r.industryDescription ?? "",
+        r.companyLocation ?? "",
+        new Date(v.date),
+        v.note ?? "",
+      ]);
+    }
+  }
+
+  ws.columns.forEach((col) => {
+    let max = 10;
+    col.eachCell?.({ includeEmpty: false }, (cell) => {
+      const len = String(cell.value ?? "").length;
+      if (len > max) max = len;
+    });
+    col.width = Math.min(max + 2, 50);
   });
 
   const out = await wb.xlsx.writeBuffer();

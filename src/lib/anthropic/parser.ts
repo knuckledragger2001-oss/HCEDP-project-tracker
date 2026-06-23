@@ -27,6 +27,7 @@ GENERAL RULES
 - leadSource: classify the original sender. The Texas Governor's Office / EDT / "gov.texas.gov" => TEXAS_GOVERNORS_OFFICE. Opportunity Austin => OPPORTUNITY_AUSTIN. Sent directly by the company => DIRECT. Otherwise OTHER (and put detail in leadSourceOther). The HCEDP staffer who forwarded it internally is NOT the lead source; the external originator is.
 - sourceContactName / sourceContactEmail: the originating contact to respond to.
 - submissionDestination: where the response is to be submitted.
+- companyLocationRaw: the company's current/home location if stated (e.g. "Chicago, IL", "Illinois", or just "Germany" for a foreign company). Copy it as written — do not guess. Leave null if the RFI keeps the company anonymous or gives no location.
 - Capital investment: capture total/land/building/equipment as plain numbers in USD (e.g. 1600000000, not "$1.6B").
 - avgWage: a single USD number.
 - jobPhases: one entry per phased job figure, with the count and the timeframe exactly as written (e.g. count 75, timeframe "Year One"; count 200, timeframe "3-5 years").

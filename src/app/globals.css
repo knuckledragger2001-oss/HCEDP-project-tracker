@@ -1,23 +1,43 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f6f7f8;
-  --foreground: #18211c;
-  --brand: #2f6b4f; /* HCEDP green */
-  --brand-dark: #234f3b;
+  /* HCEDP brand palette */
+  --brand: #174c34; /* deep green */
+  --brand-dark: #0f3524; /* hover / pressed */
+  --accent: #6ba7c1; /* blue (logo mark) */
+  --accent-dark: #5491ad;
+  --cream: #fffced; /* warm paper */
+
+  --background: var(--cream);
+  --surface: #ffffff;
+  --foreground: #15241c; /* near-black green */
+  --muted: #5b6b62; /* secondary text, greener gray */
+  --line: #e7e3d2; /* warm hairline border */
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
   --color-brand: var(--brand);
   --color-brand-dark: var(--brand-dark);
+  --color-accent: var(--accent);
+  --color-accent-dark: var(--accent-dark);
+  --color-cream: var(--cream);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  /* Soft, warm-to-cool gradient on the root so it always fills the viewport:
+     cream paper easing into a faint sage tint. */
+  min-height: 100%;
+  background: linear-gradient(160deg, #fffdf5 0%, #f8f8ec 48%, #ecf3ef 100%);
+}
+
 body {
-  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, Arial, sans-serif;
 }
@@ -27,27 +47,41 @@ body {
   .btn-primary,
   .btn-secondary,
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply bg-brand text-white hover:bg-brand-dark;
+    @apply bg-brand text-cream shadow-sm hover:bg-brand-dark hover:shadow active:translate-y-px;
   }
   .btn-secondary {
-    @apply border border-gray-300 bg-white text-gray-700 hover:bg-gray-50;
+    @apply border border-line bg-surface text-brand hover:border-brand/40 hover:bg-brand/5;
   }
   .btn-danger {
-    @apply border border-red-200 bg-white text-red-600 hover:bg-red-50;
+    @apply border border-red-200 bg-surface text-red-600 hover:bg-red-50;
   }
+
+  /* Surface card: warm hairline, soft elevation. */
   .card {
-    @apply rounded-lg border border-gray-200 bg-white shadow-sm;
+    @apply rounded-xl border border-line bg-surface shadow-sm;
   }
+
   .label {
-    @apply block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1;
+    @apply block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1;
   }
+
   .input {
-    @apply w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand;
+    @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm shadow-sm transition-colors;
+    @apply focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30;
   }
+
   .badge {
-    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold;
+  }
+
+  /* Top navigation link; gets a brand pill when active. */
+  .nav-link {
+    @apply rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-brand/5 hover:text-brand;
+  }
+  .nav-link-active {
+    @apply bg-brand/10 text-brand;
   }
 }

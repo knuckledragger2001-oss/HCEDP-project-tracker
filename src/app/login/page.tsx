@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import LoginForm from "./LoginForm";
+import { LogoMark, Wordmark } from "@/components/brand/Logo";
 
 export const metadata: Metadata = {
   title: "Sign in — HCEDP Projects Tracker",
@@ -7,18 +8,14 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-[80vh] items-center justify-center px-4">
+    <div className="flex min-h-screen items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <span className="grid h-12 w-12 place-items-center rounded-lg bg-brand text-lg font-bold text-white">
-            HC
-          </span>
-          <h1 className="text-lg font-semibold text-gray-900">
-            HCEDP Projects Tracker
-          </h1>
-          <p className="text-sm text-gray-500">Sign in to continue</p>
+        <div className="mb-7 flex flex-col items-center gap-4 text-center">
+          <LogoMark className="h-16 w-16" />
+          <Wordmark className="h-9 w-auto" />
+          <p className="text-sm text-muted">Sign in to the Projects Tracker</p>
         </div>
-        <div className="card p-6">
+        <div className="card p-6 shadow-md">
           <LoginForm />
         </div>
       </div>

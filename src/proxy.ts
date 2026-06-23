@@ -42,5 +42,10 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Gate pages and API routes, but never static assets in /public (e.g. the
+  // brand logos used on the public login page) — those must load without a
+  // session, so exclude anything ending in a common asset extension.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpe?g|gif|svg|webp|ico|css|js|woff2?|map)$).*)",
+  ],
 };

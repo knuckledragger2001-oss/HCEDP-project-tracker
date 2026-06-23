@@ -14,7 +14,13 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { PIPELINE_STAGES, type PipelineStageValue } from "@/lib/projects/schema";
-import { formatCurrency, formatDate, formatNumber, stageBadgeClass } from "@/lib/format";
+import {
+  formatCurrency,
+  formatDate,
+  formatNumber,
+  stageBadgeClass,
+  stageColor,
+} from "@/lib/format";
 
 export interface BoardProject {
   id: string;
@@ -109,18 +115,24 @@ function Card({ project }: { project: BoardProject }) {
     id: project.id,
   });
   return (
-    <div ref={setNodeRef} className={`card p-2 ${isDragging ? "opacity-30" : ""}`}>
+    <div
+      ref={setNodeRef}
+      className={`card border-l-4 p-2.5 transition-all hover:-translate-y-0.5 hover:shadow-md ${
+        isDragging ? "opacity-30" : ""
+      }`}
+      style={{ borderLeftColor: stageColor(project.stage) }}
+    >
       <div className="flex items-start justify-between gap-1">
         <Link
           href={`/projects/${project.id}`}
-          className="text-sm font-medium leading-tight text-gray-900 hover:text-brand hover:underline"
+          className="text-sm font-semibold leading-tight text-brand hover:underline"
         >
           {project.codename}
         </Link>
         <button
           {...listeners}
           {...attributes}
-          className="cursor-grab text-gray-300 hover:text-gray-500"
+          className="-mt-0.5 -mr-1 cursor-grab rounded px-1 text-gray-300 hover:bg-brand/5 hover:text-brand"
           aria-label="Drag"
           title="Drag to move stage"
         >
@@ -158,10 +170,10 @@ function Card({ project }: { project: BoardProject }) {
           );
         })()}
         {project.submissionCount > 0 && (
-          <div className="text-brand">
+          <span className="badge mt-0.5 bg-accent/15 text-accent-dark">
             {project.submissionCount} site
             {project.submissionCount === 1 ? "" : "s"}
-          </div>
+          </span>
         )}
       </div>
     </div>
@@ -180,14 +192,22 @@ function Column({
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   return (
     <div className="flex flex-col">
-      <div className="mb-1 flex items-center justify-between px-1">
-        <span className="text-xs font-semibold text-gray-700">{label}</span>
-        <span className="badge bg-gray-100 text-gray-600">{projects.length}</span>
+      <div className="mb-1.5 flex items-center justify-between gap-1 px-1">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+          <span
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: stageColor(stage) }}
+          />
+          {label}
+        </span>
+        <span className="badge bg-brand/8 text-muted">{projects.length}</span>
       </div>
       <div
         ref={setNodeRef}
-        className={`flex min-h-24 flex-1 flex-col gap-1.5 rounded-lg p-1.5 transition-colors ${
-          isOver ? "bg-brand/10" : "bg-gray-100/60"
+        className={`flex min-h-24 flex-1 flex-col gap-2 rounded-xl border p-1.5 transition-colors ${
+          isOver
+            ? "border-accent/40 bg-accent/10"
+            : "border-line/70 bg-brand/[0.03]"
         }`}
       >
         {projects.map((p) => (

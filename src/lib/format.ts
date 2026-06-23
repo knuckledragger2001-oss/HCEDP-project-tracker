@@ -56,6 +56,33 @@ export function stageBadgeClass(stage: PipelineStageValue | string): string {
   }
 }
 
+// Accent hex per stage — used for the board card's left bar and column dots so
+// each stage reads as visually distinct at a glance. Harmonized with the brand.
+export function stageColor(stage: PipelineStageValue | string): string {
+  switch (stage) {
+    case "RFI_RECEIVED":
+      return "#94a3b8"; // slate
+    case "PENDING_INFORMATION":
+      return "#d9a441"; // amber
+    case "RFI_SUBMITTED":
+      return "#6ba7c1"; // brand blue
+    case "SHORTLISTED":
+      return "#6366f1"; // indigo
+    case "SITE_VISIT":
+      return "#8b5cf6"; // violet
+    case "IN_NEGOTIATIONS":
+      return "#0d9488"; // teal
+    case "WON":
+      return "#174c34"; // brand green
+    case "LOST":
+      return "#dc2626"; // red
+    case "NO_SUBMISSION":
+      return "#64748b"; // slate-600
+    default:
+      return "#94a3b8";
+  }
+}
+
 export function formatCurrency(
   value: number | string | null | undefined,
 ): string {

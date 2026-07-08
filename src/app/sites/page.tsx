@@ -11,6 +11,7 @@ export default async function SitesPage() {
       orderBy: [{ type: "asc" }, { order: "asc" }],
     }),
     prisma.site.findMany({
+      where: { deletedAt: null },
       orderBy: { name: "asc" },
       include: {
         electricProvider: true,

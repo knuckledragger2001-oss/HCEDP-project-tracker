@@ -4,7 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ParsedProject, StagedAttachment } from "@/lib/anthropic/schema";
 import { PIPELINE_STAGES, type PipelineStageValue } from "@/lib/projects/schema";
-import { LEAD_SOURCE_LABELS } from "@/lib/format";
+import {
+  LEAD_SOURCE_LABELS,
+  LEAD_SOURCE_OTHER_VALUE,
+  REQUIREMENT_PREFERENCE_LABELS,
+} from "@/lib/format";
 import { NAICS_OPTIONS, NAICS_BY_CODE } from "@/lib/naics";
 import {
   normalizeLocation,
@@ -27,6 +31,14 @@ import {
 const LEAD_SOURCE_OPTIONS = Object.entries(LEAD_SOURCE_LABELS).map(
   ([value, label]) => ({ value, label }),
 );
+// Tri-state prefs are nullable, so lead with a blank "—" (= not specified).
+const PREFERENCE_OPTIONS = [
+  { value: "", label: "—" },
+  ...Object.entries(REQUIREMENT_PREFERENCE_LABELS).map(([value, label]) => ({
+    value,
+    label,
+  })),
+];
 const UTILITY_OPTIONS = [
   { value: "ELECTRICITY", label: "Electricity" },
   { value: "WATER", label: "Water" },
@@ -316,12 +328,12 @@ export default function ReviewForm({
           </Field>
           <Field label="Lead source">
             <Select
-              value={p.leadSource ?? "OTHER"}
+              value={p.leadSource ?? LEAD_SOURCE_OTHER_VALUE}
               onChange={(v) => set("leadSource", v as ParsedProject["leadSource"])}
               options={LEAD_SOURCE_OPTIONS}
             />
           </Field>
-          {p.leadSource === "OTHER" && (
+          {p.leadSource === LEAD_SOURCE_OTHER_VALUE && (
             <Field label="Lead source (other)">
               <Text
                 value={p.leadSourceOther ?? ""}
@@ -511,6 +523,30 @@ export default function ReviewForm({
             <Text
               value={csv(p.siteLocationPreferences)}
               onChange={(v) => set("siteLocationPreferences", fromCsv(v))}
+            />
+          </Field>
+          <Field label="Existing building">
+            <Select
+              value={p.existingBuildingPreference ?? ""}
+              onChange={(v) =>
+                set(
+                  "existingBuildingPreference",
+                  (v || null) as ParsedProject["existingBuildingPreference"],
+                )
+              }
+              options={PREFERENCE_OPTIONS}
+            />
+          </Field>
+          <Field label="Rail requirement">
+            <Select
+              value={p.railPreference ?? ""}
+              onChange={(v) =>
+                set(
+                  "railPreference",
+                  (v || null) as ParsedProject["railPreference"],
+                )
+              }
+              options={PREFERENCE_OPTIONS}
             />
           </Field>
         </Section>

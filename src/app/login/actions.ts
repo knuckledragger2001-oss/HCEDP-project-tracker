@@ -27,9 +27,9 @@ export async function login(
 
   const email = parsed.data.email.trim().toLowerCase();
   const user = await prisma.user.findUnique({ where: { email } });
-  // Same generic message whether the email is unknown, disabled, or the
+  // Same generic message whether the email is unknown, disabled, deleted, or the
   // password is wrong — don't leak which.
-  if (!user || user.disabledAt) {
+  if (!user || user.disabledAt || user.deletedAt) {
     return { error: "Invalid email or password." };
   }
   const ok = await verifyPassword(parsed.data.password, user.passwordHash);

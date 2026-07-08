@@ -6,6 +6,7 @@ import ProjectActions from "@/components/ProjectActions";
 import SubmissionsPanel, {
   type SubmissionLite,
 } from "@/components/SubmissionsPanel";
+import TabbedCard from "@/components/project/TabbedCard";
 import {
   EditableHeader,
   EditableSourceDates,
@@ -33,9 +34,12 @@ export default async function ProjectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [project, communities, sites] = await Promise.all([
-    prisma.project.findUnique({
-      where: { id },
+  // The site catalog for the submissions picker is fetched client-side by
+  // SubmissionsPanel, so it isn't loaded here — keeps the page's initial render
+  // light regardless of how large the site list grows.
+  const [project, communities] = await Promise.all([
+    prisma.project.findFirst({
+      where: { id, deletedAt: null },
       include: {
         stageHistory: { orderBy: { changedAt: "asc" } },
         jobPhases: { orderBy: { orderIndex: "asc" } },
@@ -51,10 +55,6 @@ export default async function ProjectDetailPage({
       },
     }),
     prisma.community.findMany({ orderBy: { order: "asc" } }),
-    prisma.site.findMany({
-      orderBy: { name: "asc" },
-      include: { community: true },
-    }),
   ]);
 
   if (!project) notFound();
@@ -67,7 +67,10 @@ export default async function ProjectDetailPage({
     site: {
       id: s.site.id,
       name: s.site.name,
-      community: { id: s.site.community.id, name: s.site.community.name },
+      community: {
+        id: s.site.community?.id ?? "__none",
+        name: s.site.community?.name ?? "Outside city limits",
+      },
     },
   }));
 
@@ -115,85 +118,199 @@ export default async function ProjectDetailPage({
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <EditableSourceDates
-          projectId={project.id}
-          leadSource={project.leadSource}
-          leadSourceOther={project.leadSourceOther}
-          sourceContactName={project.sourceContactName}
-          submissionDestination={project.submissionDestination}
-          companyLocationRaw={project.companyLocationRaw}
-          companyState={project.companyState}
-          companyCountry={project.companyCountry}
-          dates={{
-            rfiReceivedDate: iso(project.rfiReceivedDate),
-            responseDueDate: iso(project.responseDueDate),
-            responseSubmittedDate: iso(project.responseSubmittedDate),
-            projectedDecisionDate: iso(project.projectedDecisionDate),
-            productionStartDate: iso(project.productionStartDate),
-          }}
-          siteVisits={project.siteVisits.map((v) => ({
-            date: v.visitDate.toISOString(),
-            note: v.note,
-          }))}
+      {/* Topic boxes: related sections grouped behind sub-tabs so the page reads
+          as a horizontal grid rather than one long vertical stack. */}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        <TabbedCard
+          tabs={[
+            {
+              key: "source",
+              label: "Source & dates",
+              node: (
+                <EditableSourceDates
+                  projectId={project.id}
+                  leadSource={project.leadSource}
+                  leadSourceOther={project.leadSourceOther}
+                  sourceContactName={project.sourceContactName}
+                  submissionDestination={project.submissionDestination}
+                  companyLocationRaw={project.companyLocationRaw}
+                  companyState={project.companyState}
+                  companyCountry={project.companyCountry}
+                  dates={{
+                    rfiReceivedDate: iso(project.rfiReceivedDate),
+                    responseDueDate: iso(project.responseDueDate),
+                    responseSubmittedDate: iso(project.responseSubmittedDate),
+                    projectedDecisionDate: iso(project.projectedDecisionDate),
+                    productionStartDate: iso(project.productionStartDate),
+                  }}
+                  siteVisits={project.siteVisits.map((v) => ({
+                    date: v.visitDate.toISOString(),
+                    note: v.note,
+                  }))}
+                />
+              ),
+            },
+            {
+              key: "investment",
+              label: "Investment & jobs",
+              node: (
+                <EditableInvestmentJobs
+                  projectId={project.id}
+                  capexTotal={dec(project.capexTotal)}
+                  capexLand={dec(project.capexLand)}
+                  capexBuilding={dec(project.capexBuilding)}
+                  capexEquipment={dec(project.capexEquipment)}
+                  avgWage={dec(project.avgWage)}
+                  financingNotes={project.financingNotes}
+                  jobPhases={project.jobPhases.map((j) => ({
+                    count: j.count,
+                    timeframe: j.timeframe,
+                  }))}
+                />
+              ),
+            },
+          ]}
         />
 
-        <EditableInvestmentJobs
-          projectId={project.id}
-          capexTotal={dec(project.capexTotal)}
-          capexLand={dec(project.capexLand)}
-          capexBuilding={dec(project.capexBuilding)}
-          capexEquipment={dec(project.capexEquipment)}
-          avgWage={dec(project.avgWage)}
-          financingNotes={project.financingNotes}
-          jobPhases={project.jobPhases.map((j) => ({
-            count: j.count,
-            timeframe: j.timeframe,
-          }))}
+        <TabbedCard
+          tabs={[
+            {
+              key: "requirements",
+              label: "Site requirements",
+              node: (
+                <EditableSiteRequirements
+                  projectId={project.id}
+                  minAcreage={project.minAcreage}
+                  minBuildingSqFt={project.minBuildingSqFt}
+                  siteLocationPreferences={project.siteLocationPreferences}
+                  buildingSizeNeeds={project.buildingSizeNeeds}
+                  requiredDeliverables={project.requiredDeliverables}
+                  existingBuildingPreference={project.existingBuildingPreference}
+                  railPreference={project.railPreference}
+                />
+              ),
+            },
+            {
+              key: "utilities",
+              label: "Utilities",
+              node: (
+                <EditableUtilities
+                  projectId={project.id}
+                  utilities={project.utilities.map((u) => ({
+                    type: u.type,
+                    normalizedValue: u.normalizedValue,
+                    normalizedUnit: u.normalizedUnit,
+                    rawValue: u.rawValue,
+                    purpose: u.purpose,
+                    alternatives: u.alternatives,
+                    notes: u.notes,
+                    flagged: u.flagged,
+                    assumptionNote: u.assumptionNote,
+                    datapoints: u.datapoints.map((dp) => ({
+                      kind: dp.kind,
+                      label: dp.label,
+                      value: dp.value,
+                      unit: dp.unit,
+                      date: iso(dp.date),
+                      rawValue: dp.rawValue,
+                      flagged: dp.flagged,
+                      assumptionNote: dp.assumptionNote,
+                    })),
+                  }))}
+                />
+              ),
+            },
+            {
+              key: "criteria",
+              label: "Critical criteria",
+              node: (
+                <EditableCriticalCriteria
+                  projectId={project.id}
+                  criticalCriteria={project.criticalCriteria.map((c) => ({
+                    rank: c.rank,
+                    text: c.text,
+                  }))}
+                />
+              ),
+            },
+          ]}
         />
 
-        <EditableSiteRequirements
-          projectId={project.id}
-          minAcreage={project.minAcreage}
-          minBuildingSqFt={project.minBuildingSqFt}
-          siteLocationPreferences={project.siteLocationPreferences}
-          buildingSizeNeeds={project.buildingSizeNeeds}
-          requiredDeliverables={project.requiredDeliverables}
+        <TabbedCard
+          tabs={[
+            {
+              key: "qualitative",
+              label: "Qualitative needs",
+              node: (
+                <EditableQualitative
+                  projectId={project.id}
+                  qualitativeNotes={project.qualitativeNotes.map((q) => ({
+                    label: q.label,
+                    content: q.content,
+                  }))}
+                />
+              ),
+            },
+            {
+              key: "notes",
+              label: "Other notes",
+              node: (
+                <EditableNotes
+                  projectId={project.id}
+                  environmentalNotes={project.environmentalNotes}
+                  transportationNotes={project.transportationNotes}
+                  specialServicesNotes={project.specialServicesNotes}
+                />
+              ),
+            },
+          ]}
+        />
+
+        <TabbedCard
+          tabs={[
+            {
+              key: "attachments",
+              label: "Attachments",
+              node:
+                project.attachments.length === 0 ? (
+                  <p className="text-sm text-gray-400">None.</p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {project.attachments.map((a) => (
+                      <li key={a.id}>
+                        <a
+                          href={`/api/attachments/${a.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-brand hover:underline"
+                        >
+                          {a.fileName}
+                        </a>{" "}
+                        <span className="text-xs text-gray-400">
+                          ({Math.round(a.sizeBytes / 1024)} KB)
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ),
+            },
+            {
+              key: "history",
+              label: "Stage history",
+              node: (
+                <ul className="space-y-1 text-sm text-gray-600">
+                  {project.stageHistory.map((h) => (
+                    <li key={h.id}>
+                      {formatDate(h.changedAt)} — {h.toStage.replace(/_/g, " ")}
+                      {h.note ? ` (${h.note})` : ""}
+                    </li>
+                  ))}
+                </ul>
+              ),
+            },
+          ]}
         />
       </div>
-
-      <EditableCriticalCriteria
-        projectId={project.id}
-        criticalCriteria={project.criticalCriteria.map((c) => ({
-          rank: c.rank,
-          text: c.text,
-        }))}
-      />
-
-      <EditableUtilities
-        projectId={project.id}
-        utilities={project.utilities.map((u) => ({
-          type: u.type,
-          normalizedValue: u.normalizedValue,
-          normalizedUnit: u.normalizedUnit,
-          rawValue: u.rawValue,
-          purpose: u.purpose,
-          alternatives: u.alternatives,
-          notes: u.notes,
-          flagged: u.flagged,
-          assumptionNote: u.assumptionNote,
-          datapoints: u.datapoints.map((dp) => ({
-            kind: dp.kind,
-            label: dp.label,
-            value: dp.value,
-            unit: dp.unit,
-            date: iso(dp.date),
-            rawValue: dp.rawValue,
-            flagged: dp.flagged,
-            assumptionNote: dp.assumptionNote,
-          })),
-        }))}
-      />
 
       <div className="card p-4">
         <h3 className="mb-3 text-sm font-semibold text-gray-900">
@@ -203,71 +320,7 @@ export default async function ProjectDetailPage({
           projectId={project.id}
           initialSubmissions={submissions}
           communities={communities.map((c) => ({ id: c.id, name: c.name }))}
-          sites={sites.map((s) => ({
-            id: s.id,
-            name: s.name,
-            communityId: s.communityId,
-            community: { name: s.community.name },
-          }))}
         />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <EditableQualitative
-          projectId={project.id}
-          qualitativeNotes={project.qualitativeNotes.map((q) => ({
-            label: q.label,
-            content: q.content,
-          }))}
-        />
-        <EditableNotes
-          projectId={project.id}
-          environmentalNotes={project.environmentalNotes}
-          transportationNotes={project.transportationNotes}
-          specialServicesNotes={project.specialServicesNotes}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="card p-4">
-          <h3 className="mb-2 text-sm font-semibold text-gray-900">
-            Attachments
-          </h3>
-          {project.attachments.length === 0 ? (
-            <p className="text-sm text-gray-400">None.</p>
-          ) : (
-            <ul className="space-y-1 text-sm">
-              {project.attachments.map((a) => (
-                <li key={a.id}>
-                  <a
-                    href={`/api/attachments/${a.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-brand hover:underline"
-                  >
-                    {a.fileName}
-                  </a>{" "}
-                  <span className="text-xs text-gray-400">
-                    ({Math.round(a.sizeBytes / 1024)} KB)
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <div className="card p-4">
-          <h3 className="mb-2 text-sm font-semibold text-gray-900">
-            Stage history
-          </h3>
-          <ul className="space-y-1 text-sm text-gray-600">
-            {project.stageHistory.map((h) => (
-              <li key={h.id}>
-                {formatDate(h.changedAt)} — {h.toStage.replace(/_/g, " ")}
-                {h.note ? ` (${h.note})` : ""}
-              </li>
-            ))}
-          </ul>
-        </div>
       </div>
     </div>
   );

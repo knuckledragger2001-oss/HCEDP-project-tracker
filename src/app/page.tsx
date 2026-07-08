@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default async function BoardPage() {
   const projects = await prisma.project.findMany({
+    where: { deletedAt: null },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,

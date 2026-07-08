@@ -14,11 +14,46 @@ export const SUBMISSION_STATUS_LABELS: Record<string, string> = {
   WITHDRAWN: "Withdrawn",
 };
 
+// Order here defines the dropdown order everywhere lead source is chosen. These
+// are the only options offered for new/edited records.
 export const LEAD_SOURCE_LABELS: Record<string, string> = {
-  TEXAS_GOVERNORS_OFFICE: "Texas Governor's Office",
+  TEXAS_GOVERNORS_OFFICE: "Governor's Office",
   OPPORTUNITY_AUSTIN: "Opportunity Austin",
-  DIRECT: "Direct",
-  OTHER: "Other",
+  DIRECT_COMPANY: "Direct - Company",
+  DIRECT_REGIONAL_PARTNERS: "Direct - Regional Partners",
+  DIRECT_SITE_SELECTOR: "Direct - Site Selector",
+  DIRECT_BROKER: "Direct - Broker",
+  DIRECT_MARKETING_TRIP: "Direct - HCEDP Marketing Trip",
+  DIRECT_OTHER: "Direct - Other",
+};
+
+// Retired enum values kept only so existing rows display sensibly. Not offered
+// in the dropdown. See prisma/schema.prisma LeadSource.
+const LEGACY_LEAD_SOURCE_LABELS: Record<string, string> = {
+  DIRECT: "Direct (legacy)",
+  OTHER: "Other (legacy)",
+};
+
+// Human label for any lead-source value, current or legacy.
+export function leadSourceLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return LEAD_SOURCE_LABELS[value] ?? LEGACY_LEAD_SOURCE_LABELS[value] ?? value;
+}
+
+// True for the retired values (used to fold a legacy option into an edit
+// dropdown so the current value stays visible and selectable).
+export function isLegacyLeadSource(value: string | null | undefined): boolean {
+  return !!value && value in LEGACY_LEAD_SOURCE_LABELS;
+}
+
+// The lead source that keeps the free-text "other" note field visible.
+export const LEAD_SOURCE_OTHER_VALUE = "DIRECT_OTHER";
+
+// Tri-state requirement (existing building, rail). Order defines dropdown order.
+export const REQUIREMENT_PREFERENCE_LABELS: Record<string, string> = {
+  YES: "Yes",
+  NO: "No",
+  PREFERRED: "Preferred",
 };
 
 export const REAL_ESTATE_TYPE_LABELS: Record<string, string> = {

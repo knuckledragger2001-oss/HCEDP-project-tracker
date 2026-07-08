@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
-import { LEAD_SOURCE_LABELS } from "@/lib/format";
+import { leadSourceLabel } from "@/lib/format";
 import { describeLocation } from "@/lib/location/normalize";
 
 // Filters shared by the reports. All optional; absent = no constraint.
@@ -39,7 +39,7 @@ function submissionWhere(f: ReportFilters): Prisma.SubmissionWhereInput {
   if (Object.keys(siteWhere).length > 0) where.site = siteWhere;
 
   // Archived projects are excluded from all reporting.
-  const projectWhere: Prisma.ProjectWhereInput = { archivedAt: null };
+  const projectWhere: Prisma.ProjectWhereInput = { archivedAt: null, deletedAt: null };
   if (f.naicsCode) projectWhere.naicsCode = f.naicsCode;
   if (f.stage) projectWhere.stage = f.stage as Prisma.ProjectWhereInput["stage"];
   where.project = projectWhere;
@@ -162,7 +162,8 @@ export async function cityActivityReport(
   >();
 
   for (const s of submissions) {
-    const c = s.site.community;
+    // Sites outside any city's limits have no community — bucket them together.
+    const c = s.site.community ?? { id: "__none", order: 9999, name: "Outside city limits" };
     let cEntry = communities.get(c.id);
     if (!cEntry) {
       cEntry = {
@@ -388,7 +389,8 @@ export async function quarterlySummaryReport(
   >();
 
   for (const s of submissions) {
-    const c = s.site.community;
+    // Sites outside any city's limits have no community — bucket them together.
+    const c = s.site.community ?? { id: "__none", order: 9999, name: "Outside city limits" };
     let entry = map.get(c.id);
     if (!entry) {
       entry = {
@@ -479,6 +481,7 @@ export async function siteVisitReport(
 
   const projectWhere: Prisma.ProjectWhereInput = {
     archivedAt: null,
+    deletedAt: null,
     siteVisits: { some: visitWhere },
   };
   if (f.naicsCode) projectWhere.naicsCode = f.naicsCode;
@@ -611,7 +614,7 @@ export interface LeadSourceReport {
 export async function leadSourceReport(
   f: ReportFilters,
 ): Promise<LeadSourceReport> {
-  const where: Prisma.ProjectWhereInput = { archivedAt: null };
+  const where: Prisma.ProjectWhereInput = { archivedAt: null, deletedAt: null };
   if (f.naicsCode) where.naicsCode = f.naicsCode;
   if (f.stage) where.stage = f.stage as Prisma.ProjectWhereInput["stage"];
   if (f.from || f.to) {
@@ -696,7 +699,7 @@ export async function leadSourceReport(
       const decided = a.won + a.lost;
       return {
         leadSource,
-        leadSourceLabel: LEAD_SOURCE_LABELS[leadSource] ?? leadSource,
+        leadSourceLabel: leadSourceLabel(leadSource),
         projects: a.projects,
         won: a.won,
         lost: a.lost,

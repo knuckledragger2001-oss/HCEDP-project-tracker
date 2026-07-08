@@ -7,9 +7,20 @@ import { z } from "zod";
 export const LeadSourceEnum = z.enum([
   "TEXAS_GOVERNORS_OFFICE",
   "OPPORTUNITY_AUSTIN",
+  "DIRECT_COMPANY",
+  "DIRECT_REGIONAL_PARTNERS",
+  "DIRECT_SITE_SELECTOR",
+  "DIRECT_BROKER",
+  "DIRECT_MARKETING_TRIP",
+  "DIRECT_OTHER",
+  // Legacy values — accepted so existing rows validate on read/update, but not
+  // offered in the UI dropdown. See LEAD_SOURCE_LABELS.
   "DIRECT",
   "OTHER",
 ]);
+
+// Tri-state site requirement (existing building, rail).
+export const RequirementPreferenceEnum = z.enum(["YES", "NO", "PREFERRED"]);
 
 export const UtilityTypeEnum = z.enum([
   "ELECTRICITY",
@@ -99,6 +110,8 @@ export const ParsedProjectSchema = z.object({
   minBuildingSqFt: nullableNumber,
   buildingSizeNeeds: nullableString,
   siteLocationPreferences: z.array(z.string()).optional().default([]),
+  existingBuildingPreference: RequirementPreferenceEnum.nullable().optional(),
+  railPreference: RequirementPreferenceEnum.nullable().optional(),
 
   environmentalNotes: nullableString,
   transportationNotes: nullableString,

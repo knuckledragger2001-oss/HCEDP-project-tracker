@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useContext, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { BareSection } from "./TabbedCard";
 import {
   LEAD_SOURCE_LABELS,
+  REQUIREMENT_PREFERENCE_LABELS,
+  leadSourceLabel,
+  isLegacyLeadSource,
   formatCurrency,
   formatDate,
   formatNumber,
@@ -23,6 +27,14 @@ const LOCATION_SUGGESTIONS = [...Object.values(US_STATES), ...COUNTRIES];
 const LEAD_SOURCE_OPTIONS = Object.entries(LEAD_SOURCE_LABELS).map(
   ([value, label]) => ({ value, label }),
 );
+// Nullable tri-state prefs (existing building, rail) — blank "—" = not specified.
+const PREFERENCE_OPTIONS = [
+  { value: "", label: "—" },
+  ...Object.entries(REQUIREMENT_PREFERENCE_LABELS).map(([value, label]) => ({
+    value,
+    label,
+  })),
+];
 const UTILITY_OPTIONS = [
   { value: "ELECTRICITY", label: "Electricity" },
   { value: "WATER", label: "Water" },
@@ -79,35 +91,53 @@ function SectionShell({
   error: string | null;
   children: ReactNode;
 }) {
+  const bare = useContext(BareSection);
+
+  const controls = editing ? (
+    <div className="flex gap-2">
+      <button
+        className="text-xs text-gray-500 hover:underline"
+        onClick={onCancel}
+        disabled={saving}
+      >
+        Cancel
+      </button>
+      <button
+        className="text-xs font-medium text-brand hover:underline"
+        onClick={onSave}
+        disabled={saving}
+      >
+        {saving ? "Saving…" : "Save"}
+      </button>
+    </div>
+  ) : (
+    <button
+      className="text-xs font-medium text-brand hover:underline"
+      onClick={onEdit}
+    >
+      Edit
+    </button>
+  );
+
+  // Inside a TabbedCard the box already provides the card + tab label, so drop
+  // this section's own card and title and just float the edit/save controls.
+  if (bare) {
+    return (
+      <div className="flex flex-1 flex-col">
+        <div className="mb-1 flex min-h-[1.25rem] items-center justify-end">
+          {controls}
+        </div>
+        {error && <p className="mb-1 text-xs text-red-600">{error}</p>}
+        <div>{children}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        {editing ? (
-          <div className="flex gap-2">
-            <button
-              className="text-xs text-gray-500 hover:underline"
-              onClick={onCancel}
-              disabled={saving}
-            >
-              Cancel
-            </button>
-            <button
-              className="text-xs font-medium text-brand hover:underline"
-              onClick={onSave}
-              disabled={saving}
-            >
-              {saving ? "Saving…" : "Save"}
-            </button>
-          </div>
-        ) : (
-          <button
-            className="text-xs font-medium text-brand hover:underline"
-            onClick={onEdit}
-          >
-            Edit
-          </button>
-        )}
+        {controls}
       </div>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       <div className="mt-3">{children}</div>
@@ -323,10 +353,7 @@ export function EditableSourceDates(props: {
     >
       {!editing ? (
         <>
-          <Row
-            label="Lead source"
-            value={LEAD_SOURCE_LABELS[props.leadSource] ?? props.leadSource}
-          />
+          <Row label="Lead source" value={leadSourceLabel(props.leadSource)} />
           <Row label="Source contact" value={props.sourceContactName ?? "—"} />
           <Row label="Submit to" value={props.submissionDestination ?? "—"} />
           <Row label="Company location" value={storedLocation || "—"} />
@@ -356,7 +383,17 @@ export function EditableSourceDates(props: {
               <Select
                 value={leadSource}
                 onChange={setLeadSource}
-                options={LEAD_SOURCE_OPTIONS}
+                options={
+                  isLegacyLeadSource(props.leadSource)
+                    ? [
+                        ...LEAD_SOURCE_OPTIONS,
+                        {
+                          value: props.leadSource,
+                          label: leadSourceLabel(props.leadSource),
+                        },
+                      ]
+                    : LEAD_SOURCE_OPTIONS
+                }
               />
             </GridField>
             <GridField label="Source contact">
@@ -607,6 +644,8 @@ export function EditableSiteRequirements(props: {
   siteLocationPreferences: string[];
   buildingSizeNeeds: string | null;
   requiredDeliverables: string[];
+  existingBuildingPreference: string | null;
+  railPreference: string | null;
 }) {
   const { save, saving, error } = useSectionSave(props.projectId);
   const [editing, setEditing] = useState(false);
@@ -617,6 +656,10 @@ export function EditableSiteRequirements(props: {
   const [deliverables, setDeliverables] = useState(
     props.requiredDeliverables.join(", "),
   );
+  const [existingBuilding, setExistingBuilding] = useState(
+    props.existingBuildingPreference ?? "",
+  );
+  const [rail, setRail] = useState(props.railPreference ?? "");
 
   function begin() {
     setMinAcreage(props.minAcreage);
@@ -624,6 +667,8 @@ export function EditableSiteRequirements(props: {
     setPrefs(props.siteLocationPreferences.join(", "));
     setBuilding(props.buildingSizeNeeds ?? "");
     setDeliverables(props.requiredDeliverables.join(", "));
+    setExistingBuilding(props.existingBuildingPreference ?? "");
+    setRail(props.railPreference ?? "");
     setEditing(true);
   }
   const csv = (s: string) =>
@@ -635,6 +680,8 @@ export function EditableSiteRequirements(props: {
       buildingSizeNeeds: building || null,
       siteLocationPreferences: csv(prefs),
       requiredDeliverables: csv(deliverables),
+      existingBuildingPreference: existingBuilding || null,
+      railPreference: rail || null,
     });
     if (ok) setEditing(false);
   }
@@ -667,6 +714,24 @@ export function EditableSiteRequirements(props: {
                 : "—"
             }
           />
+          <Row
+            label="Existing building"
+            value={
+              props.existingBuildingPreference
+                ? REQUIREMENT_PREFERENCE_LABELS[props.existingBuildingPreference] ??
+                  props.existingBuildingPreference
+                : "—"
+            }
+          />
+          <Row
+            label="Rail requirement"
+            value={
+              props.railPreference
+                ? REQUIREMENT_PREFERENCE_LABELS[props.railPreference] ??
+                  props.railPreference
+                : "—"
+            }
+          />
           {props.buildingSizeNeeds && (
             <p className="mt-2 text-xs text-gray-600">{props.buildingSizeNeeds}</p>
           )}
@@ -693,6 +758,16 @@ export function EditableSiteRequirements(props: {
           </GridField>
           <GridField label="Location preferences (comma-separated)">
             <Text value={prefs} onChange={setPrefs} />
+          </GridField>
+          <GridField label="Existing building">
+            <Select
+              value={existingBuilding}
+              onChange={setExistingBuilding}
+              options={PREFERENCE_OPTIONS}
+            />
+          </GridField>
+          <GridField label="Rail requirement">
+            <Select value={rail} onChange={setRail} options={PREFERENCE_OPTIONS} />
           </GridField>
           <GridField label="Building size needs">
             <Area value={building} onChange={setBuilding} rows={2} />

@@ -37,7 +37,13 @@ export async function createUser(
   const email = parsed.data.email.trim().toLowerCase();
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    return { error: "A user with that email already exists." };
+    // The email stays reserved by the unique index even after a soft delete, so
+    // spell out that case rather than a generic "already exists".
+    return {
+      error: existing.deletedAt
+        ? "A previously-deleted user has that email. Restore them or use a different email."
+        : "A user with that email already exists.",
+    };
   }
 
   await prisma.user.create({
@@ -52,14 +58,19 @@ export async function createUser(
   return { ok: true };
 }
 
+// Result shape shared by the admin mutations so the client can toast success or
+// surface a specific error.
+export type ActionResult = { ok: true } | { ok: false; error: string };
+
 // Enable/disable a login. Disabling also revokes the user's active sessions.
-export async function toggleDisabled(formData: FormData): Promise<void> {
+export async function toggleDisabled(userId: string): Promise<ActionResult> {
   const admin = await requireAdmin();
-  const userId = String(formData.get("userId") ?? "");
-  if (!userId || userId === admin.id) return; // never disable yourself
+  if (!userId || userId === admin.id) {
+    return { ok: false, error: "You cannot disable your own account." };
+  }
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) return;
+  if (!user || user.deletedAt) return { ok: false, error: "User not found." };
 
   if (user.disabledAt) {
     await prisma.user.update({ where: { id: userId }, data: { disabledAt: null } });
@@ -71,25 +82,28 @@ export async function toggleDisabled(formData: FormData): Promise<void> {
     await prisma.session.deleteMany({ where: { userId } });
   }
   revalidatePath("/admin/users");
+  return { ok: true };
 }
 
 // Change a user's role. You cannot change your own role (prevents self-lockout).
-export async function setRole(formData: FormData): Promise<void> {
+export async function setRole(userId: string, roleValue: string): Promise<ActionResult> {
   const admin = await requireAdmin();
-  const userId = String(formData.get("userId") ?? "");
-  const role = RoleEnum.safeParse(formData.get("role"));
-  if (!userId || userId === admin.id || !role.success) return;
+  const role = RoleEnum.safeParse(roleValue);
+  if (!userId || userId === admin.id || !role.success) {
+    return { ok: false, error: "You cannot change your own role." };
+  }
 
   await prisma.user.update({ where: { id: userId }, data: { role: role.data } });
   revalidatePath("/admin/users");
+  return { ok: true };
 }
 
 // Reset a user's password and force them to sign in again.
-export async function resetPassword(formData: FormData): Promise<void> {
+export async function resetPassword(userId: string, password: string): Promise<ActionResult> {
   await requireAdmin();
-  const userId = String(formData.get("userId") ?? "");
-  const password = String(formData.get("password") ?? "");
-  if (!userId || password.length < 8) return;
+  if (!userId || password.length < 8) {
+    return { ok: false, error: "Password must be at least 8 characters." };
+  }
 
   await prisma.user.update({
     where: { id: userId },
@@ -97,14 +111,33 @@ export async function resetPassword(formData: FormData): Promise<void> {
   });
   await prisma.session.deleteMany({ where: { userId } });
   revalidatePath("/admin/users");
+  return { ok: true };
 }
 
-// Permanently delete a login. You cannot delete your own account.
-export async function deleteUser(formData: FormData): Promise<void> {
+// Soft delete a login: it can no longer sign in and is hidden from the Users
+// page, but the row is preserved so an accidental delete can be undone. Also
+// revokes active sessions. You cannot delete your own account.
+export async function deleteUser(userId: string): Promise<ActionResult> {
   const admin = await requireAdmin();
-  const userId = String(formData.get("userId") ?? "");
-  if (!userId || userId === admin.id) return;
+  if (!userId || userId === admin.id) {
+    return { ok: false, error: "You cannot delete your own account." };
+  }
 
-  await prisma.user.delete({ where: { id: userId } });
+  await prisma.user.update({
+    where: { id: userId },
+    data: { deletedAt: new Date() },
+  });
+  await prisma.session.deleteMany({ where: { userId } });
   revalidatePath("/admin/users");
+  return { ok: true };
+}
+
+// Undo a soft delete (the "Undo" action on the delete toast).
+export async function restoreUser(userId: string): Promise<ActionResult> {
+  await requireAdmin();
+  if (!userId) return { ok: false, error: "User not found." };
+
+  await prisma.user.update({ where: { id: userId }, data: { deletedAt: null } });
+  revalidatePath("/admin/users");
+  return { ok: true };
 }

@@ -31,13 +31,13 @@ export function proxy(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Already signed in but on the login page → send to the board.
-  if (hasSession && pathname === "/login") {
-    const url = req.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
-  }
-
+  // NOTE: we deliberately do NOT redirect "cookie present + on /login" here.
+  // This check can only see whether a cookie exists, not whether the session is
+  // still valid. A stale cookie (e.g. after the user was deleted or disabled and
+  // their sessions were revoked) would make "/" bounce to "/login" (invalid in
+  // the DB) and "/login" bounce back to "/" (cookie present) — an infinite
+  // redirect loop that renders a blank page. Instead, the login page itself does
+  // a DB-validated redirect to "/" only when the session is genuinely valid.
   return NextResponse.next({ request: { headers } });
 }
 

@@ -1,12 +1,20 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import LoginForm from "./LoginForm";
 import { LogoMark, Wordmark } from "@/components/brand/Logo";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "Sign in — HCEDP Projects Tracker",
 };
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  // DB-validated redirect for genuinely signed-in users. Kept here (not in the
+  // cookie-only proxy) so a stale/invalid session cookie can't create a redirect
+  // loop — an invalid cookie simply renders the login form.
+  const user = await getCurrentUser();
+  if (user) redirect("/");
+
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">

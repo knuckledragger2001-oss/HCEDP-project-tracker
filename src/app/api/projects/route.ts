@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 // GET /api/projects — list for the board (lightweight columns).
 export async function GET() {
   const projects = await prisma.project.findMany({
+    where: { deletedAt: null },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,

@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   const communityId = req.nextUrl.searchParams.get("communityId") ?? undefined;
   const sites = await prisma.site.findMany({
-    where: communityId ? { communityId } : undefined,
+    where: { deletedAt: null, ...(communityId ? { communityId } : {}) },
     orderBy: [{ community: { order: "asc" } }, { name: "asc" }],
     include: {
       community: true,
@@ -33,7 +33,8 @@ const CountyEnum = z.enum(["HAYS", "CALDWELL", "TRAVIS"]);
 
 const CreateSiteSchema = z.object({
   name: z.string().min(1, "Site name is required"),
-  communityId: z.string().min(1, "Community is required"),
+  // Community is optional — a site can fall outside any city's limits.
+  communityId: z.string().nullable().optional(),
   acreage: z.number().nullable().optional(),
   address: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
   const site = await prisma.site.create({
     data: {
       name: d.name.trim(),
-      communityId: d.communityId,
+      communityId: d.communityId || null,
       acreage: d.acreage ?? null,
       address: d.address ?? null,
       notes: d.notes ?? null,

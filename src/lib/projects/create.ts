@@ -23,7 +23,7 @@ export async function createProjectFromProposal(input: SaveProjectInput) {
     codename: input.codename?.trim() || "Untitled Project",
     stage,
 
-    leadSource: input.leadSource ?? "OTHER",
+    leadSource: input.leadSource ?? "DIRECT_OTHER",
     leadSourceOther: input.leadSourceOther ?? null,
     sourceContactName: input.sourceContactName ?? null,
     sourceContactEmail: input.sourceContactEmail ?? null,
@@ -52,6 +52,8 @@ export async function createProjectFromProposal(input: SaveProjectInput) {
     minBuildingSqFt: input.minBuildingSqFt ?? null,
     buildingSizeNeeds: input.buildingSizeNeeds ?? null,
     siteLocationPreferences: input.siteLocationPreferences ?? [],
+    existingBuildingPreference: input.existingBuildingPreference ?? null,
+    railPreference: input.railPreference ?? null,
 
     environmentalNotes: input.environmentalNotes ?? null,
     transportationNotes: input.transportationNotes ?? null,

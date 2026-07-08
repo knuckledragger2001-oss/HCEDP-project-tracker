@@ -14,10 +14,9 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { PIPELINE_STAGES, type PipelineStageValue } from "@/lib/projects/schema";
+import { useToast } from "@/components/ui/Toast";
 import {
-  formatCurrency,
   formatDate,
-  formatNumber,
   stageBadgeClass,
   stageColor,
 } from "@/lib/format";
@@ -139,43 +138,33 @@ function Card({ project }: { project: BoardProject }) {
           ⠿
         </button>
       </div>
-      <div className="mt-1 space-y-0.5 text-[11px] leading-tight text-gray-500">
-        {project.industryDescription && (
-          <div className="break-words" title={project.industryDescription}>
-            {project.industryDescription}
+      {/* One compact meta row: the most relevant date (left) and how many sites
+          have been submitted (right). Deliberately minimal so a full board stays
+          scannable — richer detail lives on the project page. */}
+      {(() => {
+        const sd = stageDate(project);
+        if (!sd && project.submissionCount === 0) return null;
+        const urgency = dueUrgency(project);
+        const dateCls =
+          urgency === "overdue"
+            ? "font-medium text-red-600"
+            : urgency === "soon"
+              ? "font-medium text-yellow-600"
+              : "text-gray-500";
+        return (
+          <div className="mt-1 flex items-center justify-between gap-2 text-[11px] leading-tight">
+            <span className={dateCls}>
+              {sd ? `${sd.label} ${formatDate(sd.date)}` : ""}
+            </span>
+            {project.submissionCount > 0 && (
+              <span className="badge shrink-0 bg-accent/15 text-accent-dark">
+                {project.submissionCount} site
+                {project.submissionCount === 1 ? "" : "s"}
+              </span>
+            )}
           </div>
-        )}
-        <div>
-          {project.minBuildingSqFt
-            ? `${formatNumber(project.minBuildingSqFt)} sf`
-            : project.minAcreage
-              ? `${project.minAcreage} ac`
-              : "—"}{" "}
-          · {formatCurrency(project.capexTotal)}
-        </div>
-        {(() => {
-          const sd = stageDate(project);
-          if (!sd) return null;
-          const urgency = dueUrgency(project);
-          const cls =
-            urgency === "overdue"
-              ? "font-medium text-red-600"
-              : urgency === "soon"
-                ? "font-medium text-yellow-600"
-                : "";
-          return (
-            <div className={cls}>
-              {sd.label} {formatDate(sd.date)}
-            </div>
-          );
-        })()}
-        {project.submissionCount > 0 && (
-          <span className="badge mt-0.5 bg-accent/15 text-accent-dark">
-            {project.submissionCount} site
-            {project.submissionCount === 1 ? "" : "s"}
-          </span>
-        )}
-      </div>
+        );
+      })()}
     </div>
   );
 }
@@ -192,15 +181,20 @@ function Column({
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   return (
     <div className="flex flex-col">
-      <div className="mb-1.5 flex items-center justify-between gap-1 px-1">
+      {/* Fixed min-height so every column header occupies the same vertical
+          space whether its label wraps to one line or two — keeps the card
+          columns below them aligned across all nine stages. */}
+      <div className="mb-1.5 flex min-h-[2.5rem] items-center justify-between gap-1 px-1">
         <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
           <span
             className="h-2 w-2 shrink-0 rounded-full"
             style={{ backgroundColor: stageColor(stage) }}
           />
-          {label}
+          <span className="line-clamp-2">{label}</span>
         </span>
-        <span className="badge bg-brand/8 text-muted">{projects.length}</span>
+        <span className="badge shrink-0 bg-brand/8 text-muted">
+          {projects.length}
+        </span>
       </div>
       <div
         ref={setNodeRef}
@@ -226,6 +220,7 @@ export default function Board({
 }: {
   initialProjects: BoardProject[];
 }) {
+  const toast = useToast();
   const [projects, setProjects] = useState(initialProjects);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dateMode, setDateMode] = useState<DateMode>("all");
@@ -261,7 +256,7 @@ export default function Board({
       if (reason === null) return; // cancelled — leave the card where it was
       const trimmed = reason.trim();
       if (!trimmed) {
-        alert("A reason is required to move a project to No Submission.");
+        toast.error("A reason is required to move a project to No Submission.");
         return;
       }
       noSubmissionReason = trimmed;
@@ -278,9 +273,11 @@ export default function Board({
         ),
       });
       if (!res.ok) throw new Error("Failed");
+      const label = PIPELINE_STAGES.find((s) => s.value === stage)?.label ?? "new stage";
+      toast.success(`Moved to ${label}.`);
     } catch {
       setProjects(prev);
-      alert("Could not update stage. Please try again.");
+      toast.error("Could not update stage. Please try again.");
     }
   }
 

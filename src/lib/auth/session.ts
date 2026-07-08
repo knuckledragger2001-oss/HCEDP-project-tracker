@@ -57,7 +57,12 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     where: { id: token },
     include: { user: true },
   });
-  if (!session || session.expiresAt < new Date() || session.user.disabledAt) {
+  if (
+    !session ||
+    session.expiresAt < new Date() ||
+    session.user.disabledAt ||
+    session.user.deletedAt
+  ) {
     return null;
   }
   const u = session.user;

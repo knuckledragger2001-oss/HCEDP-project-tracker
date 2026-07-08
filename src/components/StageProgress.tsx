@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PIPELINE_STAGES, type PipelineStageValue } from "@/lib/projects/schema";
+import { useToast } from "@/components/ui/Toast";
 
 // Progress stages run left-to-right; LOST and NO_SUBMISSION are terminal
 // off-track outcomes shown as separate buttons.
@@ -42,6 +43,7 @@ export default function StageProgress({
   stage: PipelineStageValue;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [stage, setStage] = useState<PipelineStageValue>(initial);
   const [saving, setSaving] = useState(false);
 
@@ -63,7 +65,7 @@ export default function StageProgress({
       if (reason === null) return; // cancelled
       const trimmed = reason.trim();
       if (!trimmed) {
-        alert("A reason is required to move a project to No Submission.");
+        toast.error("A reason is required to move a project to No Submission.");
         return;
       }
       body.noSubmissionReason = trimmed;
@@ -80,9 +82,11 @@ export default function StageProgress({
       });
       if (!res.ok) throw new Error();
       router.refresh();
+      const label = PIPELINE_STAGES.find((s) => s.value === next)?.label ?? "new stage";
+      toast.success(`Moved to ${label}.`);
     } catch {
       setStage(prev);
-      alert("Could not change stage.");
+      toast.error("Could not change stage.");
     } finally {
       setSaving(false);
     }

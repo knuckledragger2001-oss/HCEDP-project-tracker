@@ -24,7 +24,7 @@ Call the record_rfi tool exactly once with your extraction.
 
 GENERAL RULES
 - codename: the project's anonymized codename (e.g. "Project Zero Sugar").
-- leadSource: classify the original sender. The Texas Governor's Office / EDT / "gov.texas.gov" => TEXAS_GOVERNORS_OFFICE. Opportunity Austin => OPPORTUNITY_AUSTIN. Sent directly by the company => DIRECT. Otherwise OTHER (and put detail in leadSourceOther). The HCEDP staffer who forwarded it internally is NOT the lead source; the external originator is.
+- leadSource: classify the original sender. The Texas Governor's Office / EDT / "gov.texas.gov" => TEXAS_GOVERNORS_OFFICE. Opportunity Austin => OPPORTUNITY_AUSTIN. Sent directly by the company itself => DIRECT_COMPANY. A regional economic-development partner => DIRECT_REGIONAL_PARTNERS. A site-selection consultant => DIRECT_SITE_SELECTOR. A commercial real-estate broker => DIRECT_BROKER. Originating from an HCEDP marketing trip / mission => DIRECT_MARKETING_TRIP. Any other direct or unclear origin => DIRECT_OTHER (put detail in leadSourceOther). The HCEDP staffer who forwarded it internally is NOT the lead source; the external originator is.
 - sourceContactName / sourceContactEmail: the originating contact to respond to.
 - submissionDestination: where the response is to be submitted.
 - companyLocationRaw: the company's current/home location if stated (e.g. "Chicago, IL", "Illinois", or just "Germany" for a foreign company). Copy it as written — do not guess. Leave null if the RFI keeps the company anonymous or gives no location.
@@ -34,6 +34,8 @@ GENERAL RULES
 - minAcreage: minimum site acreage as a plain number.
 - minBuildingSqFt: minimum building square footage required, as a plain number (e.g. 250000 for 250,000 sq ft). Extract from any statement of building size, floor space, or facility size. Leave null if not stated.
 - siteLocationPreferences: array of the stated preferences (e.g. ["Industrial Park", "Freestanding Site", "Incubator Site"]).
+- existingBuildingPreference: whether the company wants an existing building — YES if an existing building is required/wanted, NO if they want land/greenfield only or explicitly not an existing building, PREFERRED if an existing building is preferred but not required. Null if not stated.
+- railPreference: whether rail service is required — YES / NO / PREFERRED using the same convention. Null if not stated.
 - criticalCriteria: the must-have needs the RFI lists "in order of importance". Preserve that order using rank 1, 2, 3, ... These drive site selection.
 - requiredDeliverables: what the response must include (e.g. "Site Summary Spreadsheet", "RFI Response combined into one PDF").
 - qualitativeNotes: capture soft/qualitative needs that do not fit a structured field (e.g. "supportive educational ecosystem"), each as { label, content }.

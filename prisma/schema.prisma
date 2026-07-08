@@ -32,10 +32,32 @@ enum UserRole {
 }
 
 enum LeadSource {
-  TEXAS_GOVERNORS_OFFICE
+  TEXAS_GOVERNORS_OFFICE // label: "Governor's Office"
   OPPORTUNITY_AUSTIN
+  DIRECT_COMPANY
+  DIRECT_REGIONAL_PARTNERS
+  DIRECT_SITE_SELECTOR
+  DIRECT_BROKER
+  DIRECT_MARKETING_TRIP
+  DIRECT_OTHER
+
+  // Legacy values retained so this change is purely additive (Postgres cannot
+  // drop an enum value that existing rows may still use, and the production
+  // default used to be OTHER). They are NOT offered when creating/editing
+  // records — see LEAD_SOURCE_LABELS — only preserved for existing rows. Remove
+  // them in a later migration after remapping old rows (see
+  // prisma/manual-migrations/2026-07-lead-source-expand.sql).
   DIRECT
   OTHER
+}
+
+// Tri-state site requirement: the company wants it, doesn't want it, or would
+// prefer it but it isn't a hard requirement. Used for "existing building" and
+// "rail" needs.
+enum RequirementPreference {
+  YES
+  NO
+  PREFERRED
 }
 
 enum UtilityType {
@@ -90,7 +112,7 @@ model Project {
   stage    PipelineStage @default(RFI_RECEIVED)
 
   // Lead source / routing
-  leadSource            LeadSource @default(OTHER)
+  leadSource            LeadSource @default(DIRECT_OTHER)
   leadSourceOther       String?
   sourceContactName     String?
   sourceContactEmail    String?
@@ -131,6 +153,10 @@ model Project {
   minBuildingSqFt         Float?
   buildingSizeNeeds       String?  @db.Text
   siteLocationPreferences String[] // e.g. Industrial Park, Freestanding Site, Incubator
+  // Whether the company wants an existing building and whether rail service is
+  // required (Yes / No / Preferred). Null = not specified in the RFI.
+  existingBuildingPreference RequirementPreference?
+  railPreference             RequirementPreference?
 
   // Notes
   environmentalNotes   String? @db.Text
@@ -161,6 +187,11 @@ model Project {
   // database, surfaced only via an explicit "archived" filter on the pipeline.
   archivedAt DateTime?
 
+  // Soft delete. When set, the project is excluded from every list, report and
+  // lookup, but the row (and its relations) are preserved so a delete can be
+  // undone from the toast that appears immediately after. See src/lib/softDelete.
+  deletedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -177,6 +208,7 @@ model Project {
   @@index([naicsCode])
   @@index([rfiReceivedDate])
   @@index([archivedAt])
+  @@index([deletedAt])
   @@index([companyState])
   @@index([companyCountry])
 }
@@ -344,8 +376,15 @@ model UtilityProvider {
 model Site {
   id          String    @id @default(cuid())
   name        String
-  communityId String
-  community   Community @relation(fields: [communityId], references: [id])
+  // Community is optional: some sites fall outside any city's limits. Such sites
+  // are grouped under "Outside city limits" in the UI and reports.
+  communityId String?
+  community   Community? @relation(fields: [communityId], references: [id])
+
+  // Soft delete — hidden from the Sites catalog and new-submission pickers, but
+  // the row is preserved so existing submissions still resolve and a delete can
+  // be undone. See src/app/api/sites/[id].
+  deletedAt DateTime?
 
   acreage    Float?
   address    String?
@@ -377,6 +416,7 @@ model Site {
   submissions Submission[]
 
   @@index([communityId])
+  @@index([deletedAt])
   @@index([electricProviderId])
   @@index([waterProviderId])
   @@index([sewerProviderId])
@@ -421,6 +461,11 @@ model User {
   role         UserRole  @default(USER)
   // When set, the user can no longer log in and existing sessions are rejected.
   disabledAt   DateTime?
+  // Soft delete. When set, the login is hidden from the Users page and rejected
+  // at sign-in, but the row is preserved so an accidental delete can be undone
+  // from the toast that appears immediately after. Note: the email stays
+  // reserved by the unique index while the row lingers soft-deleted.
+  deletedAt    DateTime?
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt

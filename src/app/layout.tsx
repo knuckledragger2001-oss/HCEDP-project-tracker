@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { logout } from "./login/actions";
 import { BrandLockup } from "@/components/brand/Logo";
 import MainNav from "@/components/Nav";
+import AppProviders from "@/components/ui/AppProviders";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -59,6 +60,7 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${HTML_CLASS}`}
     >
       <body className="min-h-full flex flex-col">
+        <AppProviders>
         <header className="sticky top-0 z-20 border-b border-line bg-surface">
           <div className="mx-auto flex max-w-7xl items-center gap-6 px-4 py-2.5">
             <Link href="/" className="shrink-0">
@@ -88,6 +90,7 @@ export default async function RootLayout({
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
           {children}
         </main>
+        </AppProviders>
       </body>
     </html>
   );

@@ -5,6 +5,7 @@ import { PipelineStageEnum } from "@/lib/projects/schema";
 import { normalizeLocation } from "@/lib/location/normalize";
 import {
   LeadSourceEnum,
+  RequirementPreferenceEnum,
   JobPhaseSchema,
   CriticalCriterionSchema,
   QualitativeNoteSchema,
@@ -51,6 +52,8 @@ const UpdateProjectSchema = z.object({
 
   siteLocationPreferences: z.array(z.string()).optional(),
   requiredDeliverables: z.array(z.string()).optional(),
+  existingBuildingPreference: RequirementPreferenceEnum.nullable().optional(),
+  railPreference: RequirementPreferenceEnum.nullable().optional(),
 
   companyLocationRaw: nStr,
 
@@ -99,6 +102,8 @@ const PASSTHROUGH = [
   "noSubmissionReason",
   "siteLocationPreferences",
   "requiredDeliverables",
+  "existingBuildingPreference",
+  "railPreference",
 ] as const;
 
 function toDate(value: string | null | undefined): Date | null | undefined {
@@ -113,8 +118,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const project = await prisma.project.findUnique({
-    where: { id },
+  const project = await prisma.project.findFirst({
+    where: { id, deletedAt: null },
     include: {
       stageHistory: { orderBy: { changedAt: "asc" } },
       jobPhases: { orderBy: { orderIndex: "asc" } },
@@ -140,6 +145,14 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const body = await req.json().catch(() => null);
+
+  // Undo a soft delete. Handled before validation because the update schema is
+  // strict and does not carry a "restore" key.
+  if (body && body.restore === true) {
+    await prisma.project.update({ where: { id }, data: { deletedAt: null } });
+    return NextResponse.json({ ok: true });
+  }
+
   const parsed = UpdateProjectSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -148,8 +161,8 @@ export async function PATCH(
     );
   }
 
-  const existing = await prisma.project.findUnique({
-    where: { id },
+  const existing = await prisma.project.findFirst({
+    where: { id, deletedAt: null },
     select: { stage: true, responseSubmittedDate: true, noSubmissionReason: true },
   });
   if (!existing) {
@@ -307,11 +320,17 @@ export async function PATCH(
   return NextResponse.json({ project });
 }
 
+// Soft delete: the project is hidden everywhere but the row and its relations
+// are preserved so the delete can be undone from the toast (via PATCH { restore:
+// true }). This also means deleting no longer cascades away submissions/history.
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  await prisma.project.delete({ where: { id } });
+  await prisma.project.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
   return NextResponse.json({ ok: true });
 }

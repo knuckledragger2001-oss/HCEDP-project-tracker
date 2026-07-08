@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   SUBMISSION_STATUS_LABELS,
   formatDate,
   toDateInputValue,
 } from "@/lib/format";
+import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 interface CommunityLite {
   id: string;
@@ -15,7 +17,7 @@ interface CommunityLite {
 interface SiteLite {
   id: string;
   name: string;
-  communityId: string;
+  communityId: string | null;
   community: { name: string };
 }
 export interface SubmissionLite {
@@ -32,18 +34,47 @@ export default function SubmissionsPanel({
   projectId,
   initialSubmissions,
   communities,
-  sites: initialSites,
 }: {
   projectId: string;
   initialSubmissions: SubmissionLite[];
   communities: CommunityLite[];
-  sites: SiteLite[];
 }) {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [submissions, setSubmissions] = useState(initialSubmissions);
-  const [sites, setSites] = useState(initialSites);
+  // Sites are fetched on the client so the project page's initial render doesn't
+  // have to load the entire site catalog just to populate this picker.
+  const [sites, setSites] = useState<SiteLite[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/sites")
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        const list: SiteLite[] = (d.sites ?? []).map(
+          (s: {
+            id: string;
+            name: string;
+            communityId: string | null;
+            community: { name: string } | null;
+          }) => ({
+            id: s.id,
+            name: s.name,
+            communityId: s.communityId,
+            community: { name: s.community?.name ?? "Outside city limits" },
+          }),
+        );
+        setSites(list);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // add-existing state
   const [siteId, setSiteId] = useState("");
@@ -137,10 +168,18 @@ export default function SubmissionsPanel({
   }
 
   async function remove(id: string) {
-    if (!confirm("Remove this submission?")) return;
+    const ok = await confirm({
+      title: "Remove this submission?",
+      description: "It will no longer count toward this project's submitted sites.",
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     setSubmissions((cur) => cur.filter((s) => s.id !== id));
-    await fetch(`/api/submissions?id=${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/submissions?id=${id}`, { method: "DELETE" });
     router.refresh();
+    if (res.ok) toast.success("Submission removed.");
+    else toast.error("Could not remove the submission.");
   }
 
   return (

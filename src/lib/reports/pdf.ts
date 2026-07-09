@@ -14,6 +14,8 @@ import {
   type SiteVisitReport,
   type ReportFilterLabels,
 } from "@/lib/reports/data";
+import { type DashboardReport } from "@/lib/reports/dashboard";
+import { layoutSankey } from "@/lib/reports/sankeyLayout";
 import { STAGE_LABELS, SUBMISSION_STATUS_LABELS } from "@/lib/format";
 
 // pdfmake's PDFKit/fontkit font loading breaks when bundled by Next/Turbopack
@@ -53,6 +55,8 @@ async function toBuffer(docDefinition: TDocumentDefinitions): Promise<Buffer> {
 }
 
 const BRAND = "#2f6b4f";
+// Ribbon fill on the dashboard's Sankey. Matches the on-screen chart.
+const ACCENT = "#6ba7c1";
 
 function header(title: string, filters: ReportFilterLabels): Content[] {
   return [
@@ -80,6 +84,12 @@ const styles: StyleDictionary = {
   kicker: { fontSize: 8, color: BRAND, bold: true, characterSpacing: 1 },
   h1: { fontSize: 18, bold: true, margin: [0, 2, 0, 6] as [number, number, number, number] },
   filters: { fontSize: 8, color: "#555", margin: [0, 0, 0, 2] as [number, number, number, number] },
+  // The community or stakeholder a report was run for, under the report title.
+  reportSubject: {
+    fontSize: 12,
+    color: BRAND,
+    margin: [0, 0, 0, 6] as [number, number, number, number],
+  },
   community: {
     fontSize: 13,
     bold: true,
@@ -400,6 +410,256 @@ export async function quarterlyPdf(report: QuarterlyReport): Promise<Buffer> {
       layout: "lightHorizontalLines",
     });
   }
+
+  return toBuffer({
+    pageMargins: [40, 40, 40, 40],
+    content,
+    styles,
+    defaultStyle: { font: "Roboto", fontSize: 9 },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Roll-up dashboard
+//
+// The on-screen dashboard uses Recharts, which renders in the browser and has no
+// server-side equivalent here. Rather than ship a second chart runtime for
+// export, both charts are drawn with pdfmake's vector canvas: the month chart as
+// plain columns, and the Sankey from the shared geometry in sankeyLayout.ts.
+//
+// pdfmake's canvas cannot draw text, so stage names are emitted as an ordinary
+// equal-width `columns` row above the diagram. That only lines up because the
+// layout gives every stage its own equal-width column — see sankeyLayout.ts.
+// ---------------------------------------------------------------------------
+
+const CHART_WIDTH = 515;
+const CHART_HEIGHT = 120;
+const SANKEY_HEIGHT = 230;
+
+function usd(value: number | null): string {
+  if (value === null) return "—";
+  return value.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  });
+}
+
+function count(value: number | null, fractionDigits = 0): string {
+  if (value === null) return "—";
+  return value.toLocaleString("en-US", { maximumFractionDigits: fractionDigits });
+}
+
+// A plain column chart: one bar per month, scaled to the tallest.
+function monthBarChart(months: DashboardReport["rfisByMonth"]): Content {
+  if (months.length === 0) {
+    return { text: "No RFIs in this period.", style: "empty" };
+  }
+  const peak = Math.max(...months.map((m) => m.received), 1);
+  const slot = CHART_WIDTH / months.length;
+  const barWidth = Math.min(28, Math.max(4, slot - 6));
+
+  const canvas = months.map((m, i) => {
+    const height = (m.received / peak) * CHART_HEIGHT;
+    return {
+      type: "rect" as const,
+      x: i * slot + (slot - barWidth) / 2,
+      y: CHART_HEIGHT - height,
+      w: barWidth,
+      h: height,
+      color: BRAND,
+    };
+  });
+  canvas.push({
+    type: "rect" as const,
+    x: 0,
+    y: CHART_HEIGHT,
+    w: CHART_WIDTH,
+    h: 0.5,
+    color: "#999",
+  });
+
+  // Only label every nth month once they get tight, or they overprint.
+  const step = Math.ceil(months.length / 12);
+  const labels = months
+    .filter((_, i) => i % step === 0)
+    .map((m) => ({ text: m.label, style: "meta", width: slot * step }));
+
+  return {
+    stack: [
+      { canvas, margin: [0, 4, 0, 2] as [number, number, number, number] },
+      { columns: labels, columnGap: 0 },
+      { text: `Peak: ${peak} RFI${peak === 1 ? "" : "s"} in a month`, style: "meta" },
+    ],
+  };
+}
+
+// The Sankey: stage labels above, then ribbons and node bars on one canvas.
+function sankeyChart(sankey: DashboardReport["sankey"]): Content {
+  if (sankey.links.length === 0) {
+    return { text: "No stage progression in this period.", style: "empty" };
+  }
+
+  const geo = layoutSankey(sankey, {
+    width: CHART_WIDTH,
+    height: SANKEY_HEIGHT,
+    nodeWidth: 9,
+    curveSteps: 24,
+  });
+
+  const ribbons = geo.ribbons.map((r) => ({
+    type: "polyline" as const,
+    closePath: true,
+    points: r.points,
+    color: ACCENT,
+    fillOpacity: 0.3,
+    lineWidth: 0,
+  }));
+  const bars = geo.nodes.map((n) => ({
+    type: "rect" as const,
+    x: n.x,
+    y: n.y,
+    w: n.width,
+    h: n.height,
+    color: BRAND,
+  }));
+
+  return {
+    stack: [
+      {
+        columns: geo.nodes.map((n) => ({
+          width: geo.columnWidth,
+          alignment: "center" as const,
+          stack: [
+            { text: n.name, fontSize: 6.5, color: "#374151" },
+            { text: String(n.value), fontSize: 6.5, color: "#9ca3af" },
+          ],
+        })),
+        columnGap: 0,
+      },
+      // Ribbons first so the node bars sit on top of them.
+      {
+        canvas: [...ribbons, ...bars],
+        margin: [0, 2, 0, 4] as [number, number, number, number],
+      },
+    ],
+  };
+}
+
+export async function dashboardPdf(report: DashboardReport): Promise<Buffer> {
+  const { rates, summary, sankey } = report;
+
+  // A dashboard-specific header. The stakeholder or community this was run for
+  // is the headline — these get printed and handed across a table.
+  const content: Content[] = [
+    { text: "HCEDP Projects Report", style: "h1" },
+    { text: report.filters.community, style: "reportSubject" },
+    {
+      style: "filters",
+      columns: [
+        { text: `Period: ${report.filters.period}` },
+        { text: `NAICS: ${report.filters.naics}` },
+        { text: `Stage: ${report.filters.stage}` },
+      ],
+    },
+    {
+      canvas: [
+        { type: "line", x1: 0, y1: 4, x2: 515, y2: 4, lineWidth: 1, lineColor: BRAND },
+      ],
+      margin: [0, 4, 0, 10] as [number, number, number, number],
+    },
+  ];
+
+  const tile = (label: string, value: string): TableCell => ({
+    stack: [
+      { text: value, fontSize: 14, bold: true, color: BRAND },
+      { text: label, fontSize: 7, color: "#666" },
+    ],
+    margin: [4, 6, 4, 6] as [number, number, number, number],
+  });
+
+  // Win rates are deliberately absent. Projects take years to close, so a rate
+  // computed over an arbitrary reporting window reads as a low score rather than
+  // as a pipeline still in progress. The counts below say the same thing without
+  // inviting that reading.
+  content.push({
+    table: {
+      widths: ["*", "*", "*", "*"],
+      body: [
+        [
+          tile("RFIs received", count(rates.received)),
+          tile("Responses submitted", count(rates.submitted)),
+          tile("Still open", count(rates.open)),
+          tile("No submission", count(rates.noSubmission)),
+        ],
+        [
+          tile("Won", count(rates.won)),
+          tile("Lost", count(rates.lost)),
+          tile("Total capex", usd(summary.capexTotal)),
+          tile("Average capex", usd(summary.capexAverage)),
+        ],
+        [
+          tile("Total jobs", count(summary.jobsTotal)),
+          tile("Average jobs per project", count(summary.jobsAverage, 1)),
+          tile("Average wage", usd(summary.avgWage)),
+          tile("Acreage sought", count(summary.acreageTotal)),
+        ],
+        [
+          tile("Site submissions", count(summary.submissions)),
+          tile("Site visits", count(summary.siteVisits)),
+          tile("", ""),
+          tile("", ""),
+        ],
+      ],
+    },
+    layout: "lightHorizontalLines",
+    margin: [0, 0, 0, 10] as [number, number, number, number],
+  });
+
+  content.push({ text: "RFIs received by month", style: "community" });
+  content.push(monthBarChart(report.rfisByMonth));
+
+  content.push({ text: "Stage progression", style: "community" });
+  content.push({
+    text: "Each project is charted along its furthest linear path; one that moved backwards and advanced again is drawn as a single clean run.",
+    style: "meta",
+  });
+  content.push(sankeyChart(sankey));
+  if (sankey.projectsWithBackwardMoves > 0) {
+    content.push({
+      text: `${sankey.projectsWithBackwardMoves} project${sankey.projectsWithBackwardMoves === 1 ? "" : "s"} moved backwards at some point.`,
+      style: "meta",
+    });
+  }
+
+  const breakdownTable = (
+    title: string,
+    rows: DashboardReport["byIndustry"],
+  ): Content[] => [
+    { text: title, style: "community" },
+    rows.length === 0
+      ? { text: "No projects match these filters.", style: "empty" }
+      : {
+          table: {
+            headerRows: 1,
+            widths: ["*", "auto"],
+            body: [
+              [
+                { text: "Name", style: "th" },
+                { text: "Projects", style: "th" },
+              ],
+              ...rows.map((r) => [
+                { text: r.label, style: "td" },
+                { text: String(r.count), style: "td" },
+              ]),
+            ],
+          },
+          layout: "lightHorizontalLines",
+        },
+  ];
+
+  content.push(...breakdownTable("Top industries", report.byIndustry));
+  content.push(...breakdownTable("Lead source", report.byLeadSource));
 
   return toBuffer({
     pageMargins: [40, 40, 40, 40],

@@ -348,7 +348,15 @@ export default function Board({
         </span>
       </div>
 
-      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+      {/* A stable id: dnd-kit otherwise derives its aria-describedby ids from a
+          module-level counter, which starts fresh on the client and mismatches
+          what the server rendered. */}
+      <DndContext
+        id="pipeline-board"
+        sensors={sensors}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+      >
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9">
           {PIPELINE_STAGES.map((s) => (
             <Column

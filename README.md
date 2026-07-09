@@ -19,6 +19,12 @@ feature code.
   criteria, dates, deliverables, qualitative notes). **Nothing is saved
   automatically** — the parsed proposal is shown in an editable form for review
   first, and any value the parser had to assume or convert is flagged.
+- **Leads** — A pre-project pipeline for prospects being worked before any RFI
+  exists (New → Contacted → Qualified, plus Converted and Dead — the latter
+  prompts for a reason). Converting a qualified lead creates a full project
+  carrying over everything known, through the same `createProjectFromProposal`
+  path intake uses. The lead is kept, marked Converted and linked to its
+  project, so lead-to-project conversion stays reportable.
 - **Pipeline board** — Projects move through nine stages (RFI Received →
   Pending Information → RFI Submitted → Shortlisted → Site Visit → In
   Negotiations → Won / Lost, plus No Submission for RFIs we deliberately decline
@@ -26,6 +32,11 @@ feature code.
   change is timestamped in history.
 - **Sites & submissions** — Maintain a list of real-estate sites grouped by the
   nine communities, and record which sites were submitted for each project.
+- **Dashboard** — A roll-up for stakeholder and investor meetings, filterable by
+  community, stage, and date or quarter, and exportable to **PDF**. Shows both
+  win rates (of responses submitted, and of every RFI received), RFIs by month,
+  a Sankey of stage progression, outcome and industry breakdowns, and totals for
+  capex, jobs, wages, acreage, submissions and site visits.
 - **Reports** — Two partner-facing reports, each filterable (community, date or
   quarter, NAICS, stage) and exportable to **PDF and Excel**:
   - *City Activity* — projects that submitted at least one site in a community,
@@ -52,6 +63,7 @@ are all stored, and conversions are flagged for review.
 | File storage | Pluggable driver (local disk now; S3 / Blob later)        |
 | PDF export   | pdfmake                                                   |
 | Excel export | ExcelJS                                                   |
+| Charts       | Recharts (dashboard only; PDF charts are drawn by pdfmake) |
 | Styling      | Tailwind CSS                                              |
 
 ---
@@ -216,15 +228,6 @@ The app is host-agnostic (Vercel, Render, Railway, a container, …). To deploy:
 - Historical data import: bulk-import a spreadsheet of past projects carrying
   the same fields the RFI emails provide, plus extra columns (which sites were
   submitted, whether site visits occurred, outcomes). Column-mapping step and a
-  review-before-commit pass, reusing the existing project-create path.
-- Project detail load performance: the project detail page is slow to open from
-  the pipeline view. Investigate query/payload shape (N+1 relations, full
-  payload vs. summary) and add caching or a lighter list→detail fetch.
-- Leads module: a lightweight pre-project "leads" entity with the ability to
-  convert a qualified lead into a full project (carrying over known fields).
-  Scope to be articulated further.
-- Comprehensive roll-up dashboard: a Salesforce-style at-a-glance dashboard for
-  stakeholder/investor meetings. Configurable by date range and other filters,
-  showing conversion rate, RFIs received by month, a Sankey diagram of project
-  outcomes, and summary stats on capex, wages, jobs, acreage, industries, lead
-  source, and number of site visits. Exportable to PDF.
+  review-before-commit pass, reusing the existing project-create path. The
+  roll-up dashboard has little to show until this lands — it can only chart
+  projects entered since the tracker went live.

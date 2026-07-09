@@ -31,6 +31,17 @@ enum UserRole {
   USER
 }
 
+// Stages of the pre-project leads pipeline. A lead is a prospect we are working
+// before any RFI exists. CONVERTED and DEAD are terminal: CONVERTED is set by
+// the convert-to-project action (never by hand), DEAD requires a reason.
+enum LeadStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  DEAD
+}
+
 enum LeadSource {
   TEXAS_GOVERNORS_OFFICE // label: "Governor's Office"
   OPPORTUNITY_AUSTIN
@@ -203,6 +214,9 @@ model Project {
   attachments      Attachment[]
   submissions      Submission[]
   siteVisits       SiteVisit[]
+  // Set when this project was created by converting a lead. Optional — most
+  // projects arrive directly as an RFI with no preceding lead.
+  lead             Lead?
 
   @@index([stage])
   @@index([naicsCode])
@@ -336,6 +350,77 @@ model Attachment {
   createdAt  DateTime @default(now())
 
   @@index([projectId])
+}
+
+// ---------------------------------------------------------------------------
+// Lead — the pre-project pipeline
+// ---------------------------------------------------------------------------
+
+// A prospect we are working before any RFI arrives. Deliberately a separate
+// table from Project: the board, reports and submissions all query Project, and
+// folding leads in would mean adding an "and not a lead" filter to every one of
+// those queries. Field names mirror Project wherever they overlap so that
+// convertToProject() is a straight copy rather than a translation layer.
+model Lead {
+  id String @id @default(cuid())
+
+  // Optional: a lead often arrives as a company name with no codename yet, and
+  // a codename is only assigned once it looks like a real project. At least one
+  // of codename / companyName is required — enforced in the API, not the DB,
+  // since Postgres check constraints are outside Prisma's schema language.
+  codename String?
+  stage    LeadStage @default(NEW)
+
+  // The real company name, when we know it. Projects only carry a codename
+  // because RFIs arrive anonymized; leads usually do not.
+  companyName String?
+
+  leadSource      LeadSource @default(DIRECT_OTHER)
+  leadSourceOther String?
+
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+
+  // Same raw + normalized shape as Project, so conversion copies all four.
+  companyLocationRaw String?
+  companyCity        String?
+  companyState       String?
+  companyCountry     String?
+
+  naicsCode           String?
+  industryDescription String?
+
+  // Early, uncommitted figures. Named "estimated" to distinguish them from the
+  // Project fields they seed (capexTotal, jobPhases), which come from an RFI.
+  estimatedCapex Decimal? @db.Decimal(18, 2)
+  estimatedJobs  Int?
+
+  minAcreage      Float?
+  minBuildingSqFt Float?
+
+  notes            String?   @db.Text
+  nextFollowUpDate DateTime?
+
+  // Required when stage = DEAD, mirroring Project.noSubmissionReason. Lets us
+  // report on why leads die.
+  deadReason String? @db.Text
+
+  // Set only by the convert-to-project action. The lead is kept (stage
+  // CONVERTED) rather than deleted so lead→project conversion stays reportable.
+  convertedProjectId String?   @unique
+  convertedProject   Project?  @relation(fields: [convertedProjectId], references: [id], onDelete: SetNull)
+  convertedAt        DateTime?
+
+  // Soft delete with the same restore-from-toast contract as Site and Project.
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([stage])
+  @@index([deletedAt])
+  @@index([nextFollowUpDate])
 }
 
 // ---------------------------------------------------------------------------

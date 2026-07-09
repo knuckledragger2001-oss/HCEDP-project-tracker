@@ -11,7 +11,14 @@ function toDate(value: string | null | undefined): Date | null {
 
 // Build the nested Prisma create from a reviewed proposal and persist it,
 // recording the initial stage event in the same transaction.
-export async function createProjectFromProposal(input: SaveProjectInput) {
+//
+// `client` lets a caller enlist this in an outer transaction (lead conversion
+// creates the project and stamps the lead atomically). Defaults to the shared
+// client for the ordinary intake path.
+export async function createProjectFromProposal(
+  input: SaveProjectInput,
+  client: Prisma.TransactionClient = prisma,
+) {
   const stage = input.stage ?? "RFI_RECEIVED";
 
   const locationRaw = input.companyLocationRaw?.trim() || null;
@@ -136,5 +143,5 @@ export async function createProjectFromProposal(input: SaveProjectInput) {
     },
   };
 
-  return prisma.project.create({ data, select: { id: true, codename: true } });
+  return client.project.create({ data, select: { id: true, codename: true } });
 }

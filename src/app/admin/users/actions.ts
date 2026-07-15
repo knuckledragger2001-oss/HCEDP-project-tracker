@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth/password";
 import { requireAdmin } from "@/lib/auth/session";
+import { CURRENT_VERSION } from "@/lib/changelog";
 
 const RoleEnum = z.enum(["ADMIN", "USER"]);
 
@@ -52,6 +53,9 @@ export async function createUser(
       name: parsed.data.name || null,
       role: parsed.data.role,
       passwordHash: await hashPassword(parsed.data.password),
+      // Start new users caught up so their first login isn't buried under the
+      // full changelog backlog — they only see releases shipped after they join.
+      lastSeenChangelog: CURRENT_VERSION,
     },
   });
   revalidatePath("/admin/users");

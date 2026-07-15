@@ -546,6 +546,12 @@ model User {
   role         UserRole  @default(USER)
   // When set, the user can no longer log in and existing sessions are rejected.
   disabledAt   DateTime?
+  // Version string of the most recent changelog entry this user has acknowledged
+  // (see src/lib/changelog.ts). Null = has never dismissed the "What's new"
+  // dialog, so they are shown every entry on their next visit. New users are
+  // created already caught up to the current version so they don't get the whole
+  // backlog on first login.
+  lastSeenChangelog String?
   // Soft delete. When set, the login is hidden from the Users page and rejected
   // at sign-in, but the row is preserved so an accidental delete can be undone
   // from the toast that appears immediately after. Note: the email stays

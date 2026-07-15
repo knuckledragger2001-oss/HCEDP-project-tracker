@@ -9,6 +9,8 @@ import { logout } from "./login/actions";
 import { BrandLockup } from "@/components/brand/Logo";
 import MainNav from "@/components/Nav";
 import AppProviders from "@/components/ui/AppProviders";
+import WhatsNew from "@/components/whatsnew/WhatsNew";
+import { CHANGELOG, entriesNewerThan } from "@/lib/changelog";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -56,6 +58,8 @@ export default async function RootLayout({
       ? [...NAV, { href: "/admin/users", label: "Users" }]
       : NAV;
 
+  const unseenChangelog = entriesNewerThan(user.lastSeenChangelog);
+
   return (
     <html
       lang="en"
@@ -70,6 +74,10 @@ export default async function RootLayout({
             </Link>
             <MainNav items={navItems} />
             <div className="ml-auto flex items-center gap-3">
+              <WhatsNew
+                entries={CHANGELOG}
+                unseenVersions={unseenChangelog.map((e) => e.version)}
+              />
               <span
                 className="hidden items-center gap-2 text-sm text-muted sm:flex"
                 title={user.email}

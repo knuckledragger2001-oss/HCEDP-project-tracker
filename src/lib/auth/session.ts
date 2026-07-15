@@ -18,6 +18,8 @@ export interface SessionUser {
   email: string;
   name: string | null;
   role: Role;
+  /** Version of the last changelog entry this user acknowledged (see changelog.ts). */
+  lastSeenChangelog: string | null;
 }
 
 // Create a session for a user and set the cookie. Call only from a Server
@@ -66,7 +68,13 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     return null;
   }
   const u = session.user;
-  return { id: u.id, email: u.email, name: u.name, role: u.role as Role };
+  return {
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    role: u.role as Role,
+    lastSeenChangelog: u.lastSeenChangelog,
+  };
 });
 
 // Redirect to /login unless authenticated. Use at the top of protected pages.

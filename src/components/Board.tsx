@@ -153,7 +153,7 @@ function Card({ project }: { project: BoardProject }) {
               : "text-gray-500";
         return (
           <div className="mt-1 flex items-center justify-between gap-2 text-[11px] leading-tight">
-            <span className={dateCls}>
+            <span className={`min-w-0 truncate ${dateCls}`}>
               {sd ? `${sd.label} ${formatDate(sd.date)}` : ""}
             </span>
             {project.submissionCount > 0 && (

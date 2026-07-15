@@ -72,6 +72,15 @@ export function UndoIcon(props: IconProps) {
   );
 }
 
+export function SparkleIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 3v4M12 17v4M3 12h4M17 12h4" />
+      <path d="M12 8.5 13.2 11l2.5 1-2.5 1L12 15.5 10.8 13l-2.5-1 2.5-1L12 8.5Z" />
+    </svg>
+  );
+}
+
 export function SpinnerIcon(props: IconProps) {
   return (
     <svg {...base(props)} className={`animate-spin ${props.className ?? ""}`}>

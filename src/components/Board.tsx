@@ -196,9 +196,13 @@ function Column({
           {projects.length}
         </span>
       </div>
+      {/* Cap the visible height and scroll within the column so a stage with 80+
+          cards no longer stretches the whole board to an unusable length. Every
+          column scrolls independently; dnd-kit auto-scrolls a column while
+          dragging near its edge. */}
       <div
         ref={setNodeRef}
-        className={`flex min-h-24 flex-1 flex-col gap-2 rounded-xl border p-1.5 transition-colors ${
+        className={`flex max-h-[calc(100vh-13rem)] min-h-24 flex-1 flex-col gap-2 overflow-y-auto rounded-xl border p-1.5 transition-colors ${
           isOver
             ? "border-accent/40 bg-accent/10"
             : "border-line/70 bg-brand/[0.03]"
@@ -227,12 +231,14 @@ export default function Board({
   const [archiveMode, setArchiveMode] = useState<ArchiveMode>("active");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const [query, setQuery] = useState("");
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
 
   const visible = useMemo(() => {
     const { start, end } = periodBounds(dateMode, customStart, customEnd);
+    const q = query.trim().toLowerCase();
     return projects.filter((p) => {
       if (archiveMode === "active" && p.archived) return false;
       if (archiveMode === "archived" && !p.archived) return false;
@@ -242,9 +248,13 @@ export default function Board({
         if (start && d < start) return false;
         if (end && d > end) return false;
       }
+      if (q) {
+        const haystack = `${p.codename} ${p.industryDescription ?? ""} ${p.naicsCode ?? ""}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
       return true;
     });
-  }, [projects, dateMode, archiveMode, customStart, customEnd]);
+  }, [projects, dateMode, archiveMode, customStart, customEnd, query]);
 
   async function moveProject(id: string, stage: PipelineStageValue) {
     // Moving into "No Submission" requires recording why we chose not to submit.
@@ -343,8 +353,31 @@ export default function Board({
             <option value="all">All</option>
           </select>
         </label>
+        <div className="relative">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search codename, industry, NAICS…"
+            className="input h-8 w-56 py-1 pl-7 text-xs"
+            aria-label="Search projects"
+          />
+          <svg
+            className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.45 4.39l3.08 3.08a1 1 0 01-1.42 1.42l-3.08-3.08A7 7 0 012 9z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </div>
         <span className="text-xs text-gray-400">
           {visible.length} project{visible.length === 1 ? "" : "s"}
+          {query.trim() ? " match" : ""}
         </span>
       </div>
 

@@ -45,6 +45,12 @@ dev-server.log
 # vercel
 .vercel
 
+# database dumps + prod connection secrets (never commit these)
+prod-url.txt
+*.dump
+*.sql
+*.dump.gz
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

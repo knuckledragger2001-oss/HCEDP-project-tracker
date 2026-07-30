@@ -141,7 +141,33 @@ export function formatNumber(
   return new Intl.NumberFormat("en-US", opts).format(n);
 }
 
+// Formats a DATE-ONLY value (rfiReceivedDate, responseDueDate, submissionDate,
+// siteVisitDate, utility datapoint date, …). These are calendar dates with no
+// meaningful time-of-day: they enter via <input type="date"> ("YYYY-MM-DD") and
+// are stored as UTC midnight (see toDate in lib/projects/create.ts). We must
+// therefore render them in UTC — otherwise a viewer/server west of UTC (e.g.
+// US Central) sees the previous day ("Oct 8" → "Oct 7"). This matches how
+// toDateInputValue (toISOString) and quarterOf (getUTC*) already interpret them.
+// For real timestamps (createdAt, changedAt, lastLoginAt) use formatTimestamp.
 export function formatDate(
+  value: string | Date | null | undefined,
+): string {
+  if (!value) return "—";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+// Formats a true point-in-time (createdAt, changedAt, lastLoginAt) as its
+// calendar date in the local zone. Unlike formatDate these carry a real
+// time-of-day, so forcing UTC would misreport a late-evening event as the next
+// day; the viewer's/server's own zone is the intended reading.
+export function formatTimestamp(
   value: string | Date | null | undefined,
 ): string {
   if (!value) return "—";

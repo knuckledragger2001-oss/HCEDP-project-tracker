@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/session";
-import { formatDate } from "@/lib/format";
+import { formatTimestamp } from "@/lib/format";
 import CreateUserForm from "./CreateUserForm";
 import UsersTable, { type UserRowData } from "./UsersTable";
 
@@ -33,7 +33,7 @@ export default async function UsersAdminPage() {
     name: u.name,
     role: u.role as "ADMIN" | "USER",
     disabled: u.disabledAt != null,
-    lastLoginLabel: u.lastLoginAt ? formatDate(u.lastLoginAt) : "Never",
+    lastLoginLabel: u.lastLoginAt ? formatTimestamp(u.lastLoginAt) : "Never",
     isSelf: u.id === admin.id,
   }));
 

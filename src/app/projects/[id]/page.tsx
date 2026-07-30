@@ -18,7 +18,7 @@ import {
   EditableNotes,
   EditableNoSubmissionReason,
 } from "@/components/project/editable";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatTimestamp } from "@/lib/format";
 import type { PipelineStageValue } from "@/lib/projects/schema";
 
 export const dynamic = "force-dynamic";
@@ -301,7 +301,7 @@ export default async function ProjectDetailPage({
                 <ul className="space-y-1 text-sm text-gray-600">
                   {project.stageHistory.map((h) => (
                     <li key={h.id}>
-                      {formatDate(h.changedAt)} — {h.toStage.replace(/_/g, " ")}
+                      {formatTimestamp(h.changedAt)} — {h.toStage.replace(/_/g, " ")}
                       {h.note ? ` (${h.note})` : ""}
                     </li>
                   ))}

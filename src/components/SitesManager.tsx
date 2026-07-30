@@ -365,6 +365,70 @@ export default function SitesManager({
   const [providerError, setProviderError] = useState<string | null>(null);
   const [providerEdits, setProviderEdits] = useState<Record<string, string>>({});
 
+  // --- merge duplicates ---
+  const [mergeMode, setMergeMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [mergeKeepId, setMergeKeepId] = useState<string | null>(null); // non-null => keeper dialog open
+  const [mergeBusy, setMergeBusy] = useState(false);
+
+  function toggleSelect(id: string) {
+    setSelected((cur) => {
+      const n = new Set(cur);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+  function exitMergeMode() {
+    setMergeMode(false);
+    setSelected(new Set());
+    setMergeKeepId(null);
+  }
+  // Open the keeper-picker, defaulting to the selected site with the most
+  // submissions (usually the "real" one).
+  function openMergeDialog() {
+    const chosen = sites
+      .filter((s) => selected.has(s.id))
+      .sort((a, b) => b.submissionCount - a.submissionCount);
+    if (chosen.length < 2) return;
+    setMergeKeepId(chosen[0].id);
+  }
+  async function doMerge() {
+    if (!mergeKeepId) return;
+    const mergeIds = [...selected].filter((id) => id !== mergeKeepId);
+    if (!mergeIds.length) return;
+    setMergeBusy(true);
+    try {
+      const res = await fetch("/api/sites/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keepId: mergeKeepId, mergeIds }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Merge failed");
+      setSites((cur) =>
+        cur
+          .filter((s) => !mergeIds.includes(s.id))
+          .map((s) =>
+            s.id === mergeKeepId ? { ...s, submissionCount: json.submissionCount } : s,
+          ),
+      );
+      toast.success(
+        `Merged ${mergeIds.length} site${mergeIds.length === 1 ? "" : "s"} into ${json.keepName}. ` +
+          `${json.moved} submission${json.moved === 1 ? "" : "s"} moved` +
+          (json.dropped
+            ? `, ${json.dropped} duplicate${json.dropped === 1 ? "" : "s"} removed`
+            : "") +
+          ".",
+      );
+      exitMergeMode();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setMergeBusy(false);
+    }
+  }
+
   async function addSite() {
     if (!addForm.name.trim()) {
       setError("Site name is required.");
@@ -605,6 +669,32 @@ export default function SitesManager({
         </div>
       </div>
 
+      {/* Catalog toolbar: enter "merge duplicates" mode */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-foreground">Catalog</h2>
+        {!mergeMode ? (
+          <button className="btn-secondary text-xs" onClick={() => setMergeMode(true)}>
+            Merge duplicates
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5">
+            <span className="text-xs text-foreground">
+              {selected.size} selected — tick two or more duplicate sites
+            </span>
+            <button
+              className="btn-primary text-xs"
+              onClick={openMergeDialog}
+              disabled={selected.size < 2}
+            >
+              Merge selected
+            </button>
+            <button className="btn-secondary text-xs" onClick={exitMergeMode}>
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Grouped by community */}
       <div className="space-y-4">
         {groups.map((g) => (
@@ -676,12 +766,25 @@ export default function SitesManager({
                       ) : (
                         <tr key={s.id} className="border-t border-line align-top">
                           <td className="py-1 pr-3 font-medium text-foreground">
-                            {s.name}
-                            {s.address && (
-                              <div className="text-xs font-normal text-muted">
-                                {s.address}
+                            <div className="flex items-start gap-2">
+                              {mergeMode && (
+                                <input
+                                  type="checkbox"
+                                  className="mt-0.5 shrink-0"
+                                  checked={selected.has(s.id)}
+                                  onChange={() => toggleSelect(s.id)}
+                                  aria-label={`Select ${s.name} to merge`}
+                                />
+                              )}
+                              <div>
+                                {s.name}
+                                {s.address && (
+                                  <div className="text-xs font-normal text-muted">
+                                    {s.address}
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            </div>
                           </td>
                           <td className="py-1 pr-3 text-muted">
                             {s.county ? COUNTY_LABELS[s.county] ?? s.county : "—"}
@@ -846,6 +949,66 @@ export default function SitesManager({
           </button>
         </div>
       </div>
+
+      {/* Merge keeper-picker dialog */}
+      {mergeKeepId &&
+        (() => {
+          const chosen = sites.filter((s) => selected.has(s.id));
+          const losers = chosen.filter((s) => s.id !== mergeKeepId);
+          const movingSubs = losers.reduce((n, s) => n + s.submissionCount, 0);
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+              <div className="card w-full max-w-md p-4">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Merge {chosen.length} sites
+                </h3>
+                <p className="mt-1 text-xs text-muted">
+                  Pick the site to keep. All submissions from the others move onto it,
+                  any that duplicate one it already has are dropped, and the merged sites
+                  are retired from the catalog (restorable).
+                </p>
+                <div className="mt-3 space-y-1">
+                  {chosen.map((s) => (
+                    <label
+                      key={s.id}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-brand/5"
+                    >
+                      <input
+                        type="radio"
+                        name="mergeKeep"
+                        checked={mergeKeepId === s.id}
+                        onChange={() => setMergeKeepId(s.id)}
+                      />
+                      <span className="text-sm text-foreground">{s.name}</span>
+                      <span className="ml-auto text-xs text-muted">
+                        {s.submissionCount} sub{s.submissionCount === 1 ? "" : "s"}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-muted">
+                  Keeping <span className="font-medium text-foreground">
+                    {chosen.find((s) => s.id === mergeKeepId)?.name}
+                  </span>; retiring {losers.length} other
+                  {losers.length === 1 ? "" : "s"} ({movingSubs} submission
+                  {movingSubs === 1 ? "" : "s"} to reassign).
+                </p>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    className="btn-secondary text-xs"
+                    onClick={() => setMergeKeepId(null)}
+                    disabled={mergeBusy}
+                  >
+                    Cancel
+                  </button>
+                  <button className="btn-primary text-xs" onClick={doMerge} disabled={mergeBusy}>
+                    {mergeBusy ? "Merging…" : "Merge sites"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }

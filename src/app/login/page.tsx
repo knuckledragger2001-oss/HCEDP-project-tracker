@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import LoginForm from "./LoginForm";
 import { LogoMark, Wordmark } from "@/components/brand/Logo";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentUser, homePathFor } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "Sign in — HCEDP Projects Tracker",
@@ -13,7 +13,7 @@ export default async function LoginPage() {
   // cookie-only proxy) so a stale/invalid session cookie can't create a redirect
   // loop — an invalid cookie simply renders the login form.
   const user = await getCurrentUser();
-  if (user) redirect("/");
+  if (user) redirect(homePathFor(user.role));
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-12">

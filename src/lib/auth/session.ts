@@ -12,14 +12,23 @@ import { prisma } from "@/lib/prisma";
 const COOKIE = "session";
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-export type Role = "ADMIN" | "USER";
+export type Role = "ADMIN" | "USER" | "PARTNER";
 export interface SessionUser {
   id: string;
   email: string;
   name: string | null;
   role: Role;
+  /** Set only for PARTNER users: the city this external login is scoped to. */
+  partnerCity: string | null;
   /** Version of the last changelog entry this user acknowledged (see changelog.ts). */
   lastSeenChangelog: string | null;
+}
+
+// Internal staff (ADMIN or USER) can see the projects tracker and the Placer
+// queue. PARTNER is an external, city-scoped login that only sees the Placer
+// submission area. This is the one place the internal/external line is drawn.
+export function isInternal(role: Role): boolean {
+  return role === "ADMIN" || role === "USER";
 }
 
 // Create a session for a user and set the cookie. Call only from a Server
@@ -73,6 +82,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     email: u.email,
     name: u.name,
     role: u.role as Role,
+    partnerCity: u.partnerCity,
     lastSeenChangelog: u.lastSeenChangelog,
   };
 });
@@ -84,9 +94,31 @@ export async function requireUser(): Promise<SessionUser> {
   return user;
 }
 
-// Require an admin; non-admins are bounced to the board.
+// Require an admin; non-admins are bounced to their home surface.
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
-  if (user.role !== "ADMIN") redirect("/");
+  if (user.role !== "ADMIN") redirect(homePathFor(user.role));
   return user;
+}
+
+// Require internal staff (the projects tracker + Placer queue). Partners are
+// sent to their submission area; anonymous users to login.
+export async function requireInternal(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!isInternal(user.role)) redirect("/requests");
+  return user;
+}
+
+// Require an external partner (the Placer submission area). Internal users are
+// sent back to the tracker; anonymous users to login.
+export async function requirePartner(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (user.role !== "PARTNER") redirect("/");
+  return user;
+}
+
+// Where a role lands after login and where a mis-routed request is redirected.
+// Partners live under /requests; internal staff start on the pipeline board.
+export function homePathFor(role: Role): string {
+  return role === "PARTNER" ? "/requests" : "/";
 }

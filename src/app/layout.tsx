@@ -4,7 +4,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import "./globals.css";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentUser, isInternal } from "@/lib/auth/session";
+import { partnerCityLabel } from "@/lib/placer/schema";
 import { logout } from "./login/actions";
 import { BrandLockup } from "@/components/brand/Logo";
 import MainNav from "@/components/Nav";
@@ -26,9 +27,13 @@ const NAV = [
   { href: "/", label: "Pipeline" },
   { href: "/intake", label: "New RFI" },
   { href: "/sites", label: "Sites" },
+  { href: "/placer", label: "Placer Requests" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/reports", label: "Reports" },
 ];
+
+// Partners only ever see their own submission area.
+const PARTNER_NAV = [{ href: "/requests", label: "Placer Requests" }];
 
 const HTML_CLASS = "h-full antialiased";
 
@@ -53,12 +58,20 @@ export default async function RootLayout({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const navItems =
-    user.role === "ADMIN"
+  // Route segmentation, enforced in one place. Partners are confined to their
+  // /requests area; internal staff never render the partner submission surface.
+  const partner = user.role === "PARTNER";
+  const onPartnerArea = pathname === "/requests" || pathname.startsWith("/requests/");
+  if (partner && !onPartnerArea) redirect("/requests");
+  if (!partner && onPartnerArea) redirect("/placer");
+
+  const navItems = partner
+    ? PARTNER_NAV
+    : user.role === "ADMIN"
       ? [...NAV, { href: "/admin/users", label: "Users" }]
       : NAV;
 
-  const unseenChangelog = entriesNewerThan(user.lastSeenChangelog);
+  const unseenChangelog = partner ? [] : entriesNewerThan(user.lastSeenChangelog);
 
   return (
     <html
@@ -74,16 +87,23 @@ export default async function RootLayout({
             </Link>
             <MainNav items={navItems} />
             <div className="ml-auto flex items-center gap-3">
-              <WhatsNew
-                entries={CHANGELOG}
-                unseenVersions={unseenChangelog.map((e) => e.version)}
-              />
+              {!partner && (
+                <WhatsNew
+                  entries={CHANGELOG}
+                  unseenVersions={unseenChangelog.map((e) => e.version)}
+                />
+              )}
               <span
                 className="hidden items-center gap-2 text-sm text-muted sm:flex"
                 title={user.email}
               >
                 {user.role === "ADMIN" && (
                   <span className="badge bg-accent/15 text-accent-dark">Admin</span>
+                )}
+                {partner && (
+                  <span className="badge bg-accent/15 text-accent-dark">
+                    {partnerCityLabel(user.partnerCity)}
+                  </span>
                 )}
                 <span className="font-medium text-foreground">
                   {user.name ?? user.email}

@@ -6,15 +6,23 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth/password";
 import { requireAdmin } from "@/lib/auth/session";
 import { CURRENT_VERSION } from "@/lib/changelog";
+import { PartnerCityEnum } from "@/lib/placer/schema";
 
-const RoleEnum = z.enum(["ADMIN", "USER"]);
+const RoleEnum = z.enum(["ADMIN", "USER", "PARTNER"]);
 
-const CreateUserSchema = z.object({
-  email: z.string().email(),
-  name: z.string().trim().optional(),
-  role: RoleEnum,
-  password: z.string().min(8, "Password must be at least 8 characters."),
-});
+const CreateUserSchema = z
+  .object({
+    email: z.string().email(),
+    name: z.string().trim().optional(),
+    role: RoleEnum,
+    // Required when role = PARTNER (an external city login); ignored otherwise.
+    partnerCity: PartnerCityEnum.optional(),
+    password: z.string().min(8, "Password must be at least 8 characters."),
+  })
+  .refine((d) => d.role !== "PARTNER" || !!d.partnerCity, {
+    message: "Choose a city for a partner login.",
+    path: ["partnerCity"],
+  });
 
 export type CreateUserState = { error?: string; ok?: boolean } | undefined;
 
@@ -29,6 +37,7 @@ export async function createUser(
     email: formData.get("email"),
     name: formData.get("name") || undefined,
     role: formData.get("role"),
+    partnerCity: formData.get("partnerCity") || undefined,
     password: formData.get("password"),
   });
   if (!parsed.success) {
@@ -52,6 +61,8 @@ export async function createUser(
       email,
       name: parsed.data.name || null,
       role: parsed.data.role,
+      // Only partners carry a city; internal logins stay null.
+      partnerCity: parsed.data.role === "PARTNER" ? parsed.data.partnerCity : null,
       passwordHash: await hashPassword(parsed.data.password),
       // Start new users caught up so their first login isn't buried under the
       // full changelog backlog — they only see releases shipped after they join.
@@ -90,14 +101,27 @@ export async function toggleDisabled(userId: string): Promise<ActionResult> {
 }
 
 // Change a user's role. You cannot change your own role (prevents self-lockout).
+// The inline editor only switches between the internal roles (USER/ADMIN);
+// partner logins are created via the form. Promoting to PARTNER here is rejected
+// because it would leave partnerCity unset (a broken, city-less partner);
+// switching a partner back to an internal role clears their city.
 export async function setRole(userId: string, roleValue: string): Promise<ActionResult> {
   const admin = await requireAdmin();
   const role = RoleEnum.safeParse(roleValue);
   if (!userId || userId === admin.id || !role.success) {
     return { ok: false, error: "You cannot change your own role." };
   }
+  if (role.data === "PARTNER") {
+    return {
+      ok: false,
+      error: "Create a partner login from the form above (it needs a city).",
+    };
+  }
 
-  await prisma.user.update({ where: { id: userId }, data: { role: role.data } });
+  await prisma.user.update({
+    where: { id: userId },
+    data: { role: role.data, partnerCity: null },
+  });
   revalidatePath("/admin/users");
   return { ok: true };
 }

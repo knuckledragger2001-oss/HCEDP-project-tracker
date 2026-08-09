@@ -29,6 +29,41 @@ enum PipelineStage {
 enum UserRole {
   ADMIN
   USER
+  // External city-partner login. A PARTNER only ever sees the Placer AI request
+  // area (submit + their city's requests); they are scoped to one PartnerCity and
+  // never see the internal projects tracker. See src/lib/auth/session.ts.
+  PARTNER
+}
+
+// The cities we have Placer AI reporting contracts with. A PARTNER user belongs
+// to exactly one; every PlacerRequest is stamped with the submitter's city so
+// each city only ever sees its own queue. Add a value here (and a label in
+// src/lib/placer/schema.ts) when a new city comes on board.
+enum PartnerCity {
+  SAN_MARCOS
+  BUDA
+  LOCKHART
+}
+
+// What a city is asking us to measure with a Placer AI report.
+enum PlacerReportType {
+  EVENT_ATTENDANCE
+  RESTAURANT_VISITORSHIP
+  RETAIL_FOOT_TRAFFIC
+  VISITOR_DEMOGRAPHICS
+  LOCAL_BUSINESS_SUPPORT
+  OTHER
+}
+
+// Position of a Placer AI request in the internal fulfillment queue. Drives the
+// board columns on /placer. DECLINED is terminal and mirrors a "no submission":
+// we chose not to fulfill it.
+enum PlacerRequestStatus {
+  SUBMITTED
+  IN_REVIEW
+  IN_PROGRESS
+  COMPLETED
+  DECLINED
 }
 
 // Stages of the pre-project leads pipeline. A lead is a prospect we are working
@@ -544,6 +579,10 @@ model User {
   name         String?
   passwordHash String
   role         UserRole  @default(USER)
+  // Set only for PARTNER users: the single city this external login is scoped to.
+  // Required (in the API, not the DB) when role = PARTNER; always null for
+  // internal ADMIN/USER logins.
+  partnerCity  PartnerCity?
   // When set, the user can no longer log in and existing sessions are rejected.
   disabledAt   DateTime?
   // Version string of the most recent changelog entry this user has acknowledged
@@ -563,7 +602,74 @@ model User {
 
   sessions Session[]
 
+  // Placer AI requests this user submitted (partners) and is assigned to fulfil
+  // (internal staff). Named relations because both point back to User.
+  placerRequestsSubmitted PlacerRequest[] @relation("PlacerSubmittedBy")
+  placerRequestsAssigned  PlacerRequest[] @relation("PlacerAssignedTo")
+
   @@index([email])
+  @@index([role])
+}
+
+// ---------------------------------------------------------------------------
+// Placer AI requests — the city-partner reporting queue
+// ---------------------------------------------------------------------------
+
+// A request from a partner city for a Placer AI report (event attendance,
+// restaurant visitorship, foot traffic, …). Deliberately its own table, parallel
+// to Project: it has a distinct lifecycle (PlacerRequestStatus), a distinct
+// audience (external partners submit, internal staff fulfil), and none of the
+// RFI/site machinery. External partners only ever see rows matching their own
+// city; internal staff see the whole queue on /placer.
+model PlacerRequest {
+  id   String @id @default(cuid())
+  // Which partner city this belongs to — stamped from the submitter's
+  // User.partnerCity at creation, never chosen by hand, so a city can only ever
+  // create requests for itself.
+  city PartnerCity
+
+  submittedById String
+  submittedBy   User   @relation("PlacerSubmittedBy", fields: [submittedById], references: [id])
+
+  // What / where to measure.
+  placeName       String
+  locationAddress String?
+  reportType      PlacerReportType
+  reportTypeOther String? // required (in the API) when reportType = OTHER
+
+  // Timeframe to analyze. Start/end cover a range (a month, a quarter); a single
+  // date uses start only. timeframeNote carries anything that doesn't fit dates
+  // (e.g. "the two weekends of the festival").
+  dateRangeStart DateTime?
+  dateRangeEnd   DateTime?
+  timeframeNote  String?
+
+  // Why they need it / any specifics, plus when they need it by.
+  purpose      String?   @db.Text
+  neededByDate DateTime?
+
+  // Internal fulfillment tracking.
+  status       PlacerRequestStatus @default(SUBMITTED)
+  assignedToId String?
+  assignedTo   User?               @relation("PlacerAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  // Staff-only working notes — never shown to the partner.
+  internalNotes String? @db.Text
+  // Link to / summary of the delivered report. Shown to the partner once the
+  // request is COMPLETED.
+  resultNote  String?   @db.Text
+  completedAt DateTime?
+
+  // Soft delete with the same restore-from-toast contract as Project/Lead/Site.
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([city])
+  @@index([status])
+  @@index([assignedToId])
+  @@index([submittedById])
+  @@index([deletedAt])
 }
 
 // A server-side session. The browser only holds a signed cookie carrying the

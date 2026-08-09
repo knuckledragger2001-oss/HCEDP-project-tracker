@@ -23,7 +23,9 @@ export type UserRowData = {
   id: string;
   email: string;
   name: string | null;
-  role: "ADMIN" | "USER";
+  role: "ADMIN" | "USER" | "PARTNER";
+  /** City label for PARTNER rows; null for internal users. */
+  cityLabel: string | null;
   disabled: boolean;
   lastLoginLabel: string;
   isSelf: boolean;
@@ -58,7 +60,9 @@ function UserRow({ user: u }: { user: UserRowData }) {
   const toast = useToast();
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
-  const [role, setRoleValue] = useState(u.role);
+  const [role, setRoleValue] = useState<"ADMIN" | "USER">(
+    u.role === "ADMIN" ? "ADMIN" : "USER",
+  );
   const [password, setPassword] = useState("");
 
   // Run a server action, surface the result as a toast, and refresh on success.
@@ -161,7 +165,13 @@ function UserRow({ user: u }: { user: UserRowData }) {
         <div className="text-xs text-muted">{u.email}</div>
       </td>
       <td className="px-4 py-3">
-        {u.isSelf ? (
+        {u.role === "PARTNER" ? (
+          // External city logins aren't re-roled inline (that would strand their
+          // city) — shown as a read-only Partner badge with the city.
+          <span className="badge bg-accent/15 text-accent-dark">
+            Partner · {u.cityLabel ?? "—"}
+          </span>
+        ) : u.isSelf ? (
           <span className="badge bg-brand/10 text-brand">{u.role}</span>
         ) : (
           <div className="flex items-center gap-1">

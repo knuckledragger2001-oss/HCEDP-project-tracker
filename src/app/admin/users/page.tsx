@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/session";
 import { formatTimestamp } from "@/lib/format";
+import { partnerCityLabel } from "@/lib/placer/schema";
 import CreateUserForm from "./CreateUserForm";
 import UsersTable, { type UserRowData } from "./UsersTable";
 
@@ -21,6 +22,7 @@ export default async function UsersAdminPage() {
       email: true,
       name: true,
       role: true,
+      partnerCity: true,
       disabledAt: true,
       lastLoginAt: true,
       createdAt: true,
@@ -31,7 +33,8 @@ export default async function UsersAdminPage() {
     id: u.id,
     email: u.email,
     name: u.name,
-    role: u.role as "ADMIN" | "USER",
+    role: u.role as "ADMIN" | "USER" | "PARTNER",
+    cityLabel: u.partnerCity ? partnerCityLabel(u.partnerCity) : null,
     disabled: u.disabledAt != null,
     lastLoginLabel: u.lastLoginAt ? formatTimestamp(u.lastLoginAt) : "Never",
     isSelf: u.id === admin.id,
@@ -42,8 +45,9 @@ export default async function UsersAdminPage() {
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Users</h1>
         <p className="mt-1 text-sm text-muted">
-          Admins manage logins here. General users have full access to the app
-          except this page. You can add a teammate from any browser or phone.
+          Admins manage logins here. Internal users (User / Admin) have full
+          access to the tracker except this page. Partner logins are scoped to
+          one city and only see that city&rsquo;s Placer AI request area.
         </p>
       </div>
 

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/auth/password";
-import { createSession, destroySession } from "@/lib/auth/session";
+import { createSession, destroySession, homePathFor, type Role } from "@/lib/auth/session";
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -42,7 +42,8 @@ export async function login(
     data: { lastLoginAt: new Date() },
   });
   await createSession(user.id);
-  redirect("/");
+  // Partners land on their submission area; internal staff on the tracker.
+  redirect(homePathFor(user.role as Role));
 }
 
 export async function logout(): Promise<void> {

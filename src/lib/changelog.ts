@@ -34,6 +34,18 @@ export interface ChangelogEntry {
 // Newest entry first. Add new releases at the top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "2026.08.10",
+    date: "2026-08-10",
+    title: "Add Placer requests yourself",
+    items: [
+      {
+        tag: "new",
+        text:
+          "You can now add a Placer AI request straight from the Placer Requests board with the \"Add request\" button. Use it to log requests that came in by phone or email, or to seed ones a city sent before it had a login. Pick the city, and set a starting status if it's already underway or finished.",
+      },
+    ],
+  },
+  {
     version: "2026.07.15",
     date: "2026-07-15",
     title: "What's new, and a tidier pipeline",

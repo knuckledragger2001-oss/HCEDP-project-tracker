@@ -14,6 +14,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useToast } from "@/components/ui/Toast";
+import AddRequestDialog from "./AddRequestDialog";
 import { formatDate } from "@/lib/format";
 import {
   REQUEST_STATUSES,
@@ -202,6 +203,7 @@ export default function PlacerBoard({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [cityFilter, setCityFilter] = useState<"all" | PartnerCityValue>("all");
+  const [addOpen, setAddOpen] = useState(false);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
@@ -269,6 +271,12 @@ export default function PlacerBoard({
     }
   }
 
+  function onCreated(request: QueueRequest) {
+    setRequests((cur) => [request, ...cur]);
+    setAddOpen(false);
+    toast.success("Request added to the queue.");
+  }
+
   function onDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id));
   }
@@ -287,6 +295,13 @@ export default function PlacerBoard({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3 text-sm">
+        <button
+          type="button"
+          className="btn-primary h-8 py-1 text-xs"
+          onClick={() => setAddOpen(true)}
+        >
+          Add request
+        </button>
         <label className="flex items-center gap-1.5 text-gray-600">
           <span className="text-xs font-medium text-gray-500">City</span>
           <select
@@ -359,6 +374,10 @@ export default function PlacerBoard({
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {addOpen && (
+        <AddRequestDialog onClose={() => setAddOpen(false)} onCreated={onCreated} />
+      )}
     </div>
   );
 }

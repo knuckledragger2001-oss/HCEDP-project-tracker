@@ -162,25 +162,52 @@ const optionalDate = z
   .nullable()
   .optional();
 
-// Body accepted by POST /api/placer-requests. The city and submitter are taken
-// from the session, never the body, so a partner can only create for their city.
+// The request body common to both create paths (partner self-submit and internal
+// manual entry). City, submitter and status are added per-path, not here.
+const createRequestFields = {
+  placeName: z.string().trim().min(1, "Place / location is required."),
+  locationAddress: optionalText,
+  reportType: ReportTypeEnum,
+  reportTypeOther: optionalText,
+  dateRangeStart: optionalDate,
+  dateRangeEnd: optionalDate,
+  timeframeNote: optionalText,
+  purpose: optionalText,
+  neededByDate: optionalDate,
+} as const;
+
+// OTHER must carry a free-text description of the report — shared by both create
+// schemas so the rule can't drift between the partner form and the staff form.
+const otherRequiresDescription = (d: { reportType: string; reportTypeOther?: string | null }) =>
+  d.reportType !== "OTHER" || (d.reportTypeOther?.trim().length ?? 0) > 0;
+const otherDescriptionError = {
+  message: "Describe the report you need.",
+  path: ["reportTypeOther"],
+};
+
+// Body accepted by POST /api/placer-requests from a partner. The city and
+// submitter are taken from the session, never the body, so a partner can only
+// create for their own city.
 export const CreatePlacerRequestSchema = z
-  .object({
-    placeName: z.string().trim().min(1, "Place / location is required."),
-    locationAddress: optionalText,
-    reportType: ReportTypeEnum,
-    reportTypeOther: optionalText,
-    dateRangeStart: optionalDate,
-    dateRangeEnd: optionalDate,
-    timeframeNote: optionalText,
-    purpose: optionalText,
-    neededByDate: optionalDate,
-  })
-  .refine(
-    (d) => d.reportType !== "OTHER" || (d.reportTypeOther?.trim().length ?? 0) > 0,
-    { message: "Describe the report you need.", path: ["reportTypeOther"] },
-  );
+  .object(createRequestFields)
+  .refine(otherRequiresDescription, otherDescriptionError);
 export type CreatePlacerRequestInput = z.infer<typeof CreatePlacerRequestSchema>;
+
+// Body accepted by POST /api/placer-requests from internal staff manually
+// logging a request that came in outside the portal (phone, email, or before a
+// city had a login). Staff choose the city and, optionally, the stage the
+// request is already at, so an existing backlog can be seeded where it really
+// stands. The submitter is stamped as the staff member entering it.
+export const CreatePlacerRequestInternalSchema = z
+  .object({
+    ...createRequestFields,
+    city: PartnerCityEnum,
+    status: RequestStatusEnum.optional(),
+  })
+  .refine(otherRequiresDescription, otherDescriptionError);
+export type CreatePlacerRequestInternalInput = z.infer<
+  typeof CreatePlacerRequestInternalSchema
+>;
 
 // Body accepted by PATCH /api/placer-requests/[id] — every field optional so the
 // board can send just { status } and the detail page can send a fuller edit.

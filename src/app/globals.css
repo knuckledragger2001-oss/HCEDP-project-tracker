@@ -1,45 +1,104 @@
 @import "tailwindcss";
 
+/*
+  DESIGN TOKENS — single source of truth for the redesigned visual system.
+  ----------------------------------------------------------------------
+  The look is a modern, neutral SaaS surface: a light grey canvas, white cards,
+  blended hairline borders, and soft shadows. HCEDP brand green is used as a
+  deliberate accent (primary actions, active nav, links, focus rings, the stage
+  rail) and never as a page or card fill. Blue appears only as an informational
+  status color, never as chrome. Older screens still read fine because they
+  inherit these same variables; convert them to the new components screen by
+  screen.
+*/
 :root {
-  /* HCEDP brand palette */
-  --brand: #174c34; /* deep green */
-  --brand-dark: #0f3524; /* hover / pressed */
-  --accent: #6ba7c1; /* blue (logo mark) */
-  --accent-dark: #5491ad;
-  --cream: #fffced; /* warm paper */
+  /* Text — build hierarchy with weight and size, not color. */
+  --foreground: #17211c; /* primary text: near-black with a green undertone */
+  --muted: #616b66; /* secondary text */
+  --muted-2: #98a29b; /* tertiary text, meta, captions */
 
-  --background: var(--cream);
-  --surface: #ffffff;
-  --foreground: #15241c; /* near-black green */
-  --muted: #5b6b62; /* secondary text, greener gray */
-  --line: #e7e3d2; /* warm hairline border */
+  /* Brand green — the accent. */
+  --brand: #174c34; /* primary actions, active states, progress fill */
+  --brand-dark: #123c29; /* hover / pressed */
+  --accent-ink: #1d5c3e; /* links and small green labels, lifted for contrast */
+  --green-tint: #eaf1ee; /* light green wash: active nav, icon tiles, table header */
+
+  /* Neutral surfaces. */
+  --background: #f5f6f8; /* app canvas */
+  --surface: #ffffff; /* cards, sidebar, top bar */
+  --surface-2: #f6f7f9; /* subtle hover */
+  --line: #e8eaed; /* blended hairline border */
+  --line-2: #dbdee3; /* slightly stronger border */
+
+  /* Status hues (restrained; blue is status only). Each has a soft bg tint. */
+  --success: #2f7a4f;
+  --success-bg: #eaf1ee;
+  --info: #3e86b0;
+  --info-bg: #e9f1f6;
+  --warn: #9a6b15;
+  --warn-bg: #f5ead2;
+  --danger: #b0402f;
+  --danger-bg: #f5e0db;
+  --neutral-bg: #edeef1;
+
+  /* Legacy aliases kept so un-converted screens don't break. `--accent` was the
+     logo blue used for informational badges; it now points at the status blue so
+     "blue = status" holds everywhere. `--cream` (old paper) collapses to white;
+     primary buttons now use white text. */
+  --accent: var(--info);
+  --accent-dark: #2f6a86; /* readable info text on a light tint */
+  --cream: #ffffff;
+  --line-warm: var(--line);
+
+  /* Shape and depth. */
+  --r-sm: 8px;
+  --r: 10px;
+  --r-lg: 14px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 30px -18px rgba(16, 24, 40, 0.18);
 }
 
+/* Expose tokens as Tailwind color/utility names (Tailwind v4 @theme). */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-muted: var(--muted);
+  --color-muted-2: var(--muted-2);
   --color-line: var(--line);
+  --color-line-2: var(--line-2);
   --color-brand: var(--brand);
   --color-brand-dark: var(--brand-dark);
   --color-accent: var(--accent);
   --color-accent-dark: var(--accent-dark);
+  --color-accent-ink: var(--accent-ink);
+  --color-green-tint: var(--green-tint);
   --color-cream: var(--cream);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 html {
-  /* Soft, warm-to-cool gradient on the root so it always fills the viewport:
-     cream paper easing into a faint sage tint. */
+  /* Flat neutral canvas. The old warm cream-to-sage gradient is retired: the new
+     system carries brand feel through green accents, not a tinted background. */
   min-height: 100%;
-  background: linear-gradient(160deg, #fffdf5 0%, #f8f8ec 48%, #ecf3ef 100%);
+  background: var(--background);
 }
 
 body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, Arial, sans-serif;
+}
+
+/* Numeric figures, IDs, codes, and dates use the mono face so they line up and
+   read like data. Apply .mono (or Tailwind font-mono) to those spans. */
+.mono {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 @layer components {
@@ -49,43 +108,52 @@ body {
   .btn-danger {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed;
   }
+  /* Primary: solid brand green, white text, green hover. */
   .btn-primary {
-    @apply bg-brand text-cream shadow-sm hover:bg-brand-dark hover:shadow active:translate-y-px;
+    @apply bg-brand text-white shadow-sm hover:bg-brand-dark hover:shadow active:translate-y-px;
   }
+  /* Secondary: white with a hairline border; text stays brand green. */
   .btn-secondary {
-    @apply border border-line bg-surface text-brand hover:border-brand/40 hover:bg-brand/5;
+    @apply border border-line-2 bg-surface text-brand hover:border-brand/40 hover:bg-brand/5;
   }
   .btn-danger {
     @apply border border-red-200 bg-surface text-red-600 hover:bg-red-50;
   }
 
-  /* Surface card: warm hairline, soft elevation. */
+  /* Card: white, hairline border, small radius, soft shadow. */
   .card {
     @apply rounded-xl border border-line bg-surface shadow-sm;
   }
 
+  /* Small uppercase muted label sitting above a value. */
   .label {
     @apply block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1;
   }
 
   .input {
-    @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm shadow-sm transition-colors;
-    @apply focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30;
+    @apply w-full rounded-lg border border-line-2 bg-surface px-3 py-2 text-sm shadow-sm transition-colors;
+    @apply focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25;
   }
 
   .badge {
     @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold;
   }
 
-  /* Top navigation link; gets a brand pill when active. whitespace-nowrap keeps
-     multi-word labels (e.g. "New RFI", "Placer Requests") on a single line so
-     grouped nav items stay vertically aligned. */
+  /* Top-bar / inline nav link (kept for chrome that still uses it). */
   .nav-link {
     @apply whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-brand/5 hover:text-brand;
   }
   .nav-link-active {
     @apply bg-brand/10 text-brand;
   }
+}
+
+/* Visible keyboard focus everywhere, using a green ring. Mouse clicks don't
+   trigger :focus-visible, so this only shows for keyboard users. */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* --- Feedback layer animations (toasts + confirm dialog) --- */

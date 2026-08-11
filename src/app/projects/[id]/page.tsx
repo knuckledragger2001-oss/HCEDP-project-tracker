@@ -77,11 +77,14 @@ export default async function ProjectDetailPage({
   return (
     <div className="space-y-5">
       <div>
-        <Link href="/" className="text-sm text-gray-500 hover:underline">
+        <Link
+          href="/"
+          className="text-sm text-muted transition-colors hover:text-foreground"
+        >
           ← Back to board
         </Link>
         {project.archivedAt && (
-          <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             This project is archived — hidden from the board and reports. Use
             Unarchive to restore it.
           </div>
@@ -264,7 +267,7 @@ export default async function ProjectDetailPage({
               label: "Attachments",
               node:
                 project.attachments.length === 0 ? (
-                  <p className="text-sm text-gray-400">None.</p>
+                  <p className="text-sm text-muted-2">None.</p>
                 ) : (
                   <ul className="space-y-1 text-sm">
                     {project.attachments.map((a) => (
@@ -273,11 +276,11 @@ export default async function ProjectDetailPage({
                           href={`/api/attachments/${a.id}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-brand hover:underline"
+                          className="text-accent-ink hover:text-brand-dark hover:underline"
                         >
                           {a.fileName}
                         </a>{" "}
-                        <span className="text-xs text-gray-400">
+                        <span className="mono text-xs text-muted-2">
                           ({Math.round(a.sizeBytes / 1024)} KB)
                         </span>
                       </li>
@@ -289,10 +292,13 @@ export default async function ProjectDetailPage({
               key: "history",
               label: "Stage history",
               node: (
-                <ul className="space-y-1 text-sm text-gray-600">
+                <ul className="space-y-1 text-sm text-muted">
                   {project.stageHistory.map((h) => (
                     <li key={h.id}>
-                      {formatTimestamp(h.changedAt)} — {h.toStage.replace(/_/g, " ")}
+                      <span className="mono text-muted-2">
+                        {formatTimestamp(h.changedAt)}
+                      </span>{" "}
+                      — {h.toStage.replace(/_/g, " ")}
                       {h.note ? ` (${h.note})` : ""}
                     </li>
                   ))}
@@ -304,7 +310,7 @@ export default async function ProjectDetailPage({
       </div>
 
       <div className="card p-4">
-        <h3 className="mb-3 text-sm font-semibold text-gray-900">
+        <h3 className="mb-3 text-sm font-semibold text-foreground">
           Sites submitted
         </h3>
         <SubmissionsPanel

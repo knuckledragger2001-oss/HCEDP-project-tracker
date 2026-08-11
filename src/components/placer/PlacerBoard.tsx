@@ -104,7 +104,7 @@ function Card({
         <button
           {...listeners}
           {...attributes}
-          className="-mt-0.5 -mr-1 cursor-grab rounded px-1 text-gray-300 hover:bg-brand/5 hover:text-brand"
+          className="-mt-0.5 -mr-1 cursor-grab rounded px-1 text-muted-2 hover:bg-brand/5 hover:text-brand"
           aria-label="Drag"
           title="Drag to move status"
         >
@@ -118,10 +118,10 @@ function Card({
         <p
           className={`mt-1 text-[11px] leading-tight ${
             urgency === "overdue"
-              ? "font-medium text-red-600"
+              ? "font-semibold text-danger"
               : urgency === "soon"
-                ? "font-medium text-yellow-600"
-                : "text-gray-500"
+                ? "font-semibold text-warn"
+                : "text-muted"
           }`}
         >
           Needed {formatDate(request.neededByDate)}
@@ -177,14 +177,14 @@ function Column({
       <div
         ref={setNodeRef}
         className={`flex max-h-[calc(100vh-13rem)] min-h-24 flex-1 flex-col gap-2 overflow-y-auto rounded-xl border p-1.5 transition-colors ${
-          isOver ? "border-accent/40 bg-accent/10" : "border-line/70 bg-brand/[0.03]"
+          isOver ? "border-brand/40 bg-green-tint" : "border-line bg-surface-2"
         }`}
       >
         {requests.map((r) => (
           <Card key={r.id} request={r} staff={staff} onAssign={onAssign} />
         ))}
         {requests.length === 0 && (
-          <p className="px-1 py-3 text-center text-[11px] text-gray-400">Empty</p>
+          <p className="px-1 py-3 text-center text-[11px] text-muted-2">Empty</p>
         )}
       </div>
     </div>
@@ -302,8 +302,8 @@ export default function PlacerBoard({
         >
           Add request
         </button>
-        <label className="flex items-center gap-1.5 text-gray-600">
-          <span className="text-xs font-medium text-gray-500">City</span>
+        <label className="flex items-center gap-1.5 text-muted">
+          <span className="text-xs font-medium text-muted">City</span>
           <select
             className="input h-8 w-auto py-1 text-xs"
             value={cityFilter}
@@ -327,7 +327,7 @@ export default function PlacerBoard({
             aria-label="Search requests"
           />
           <svg
-            className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
+            className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-2"
             viewBox="0 0 20 20"
             fill="currentColor"
             aria-hidden="true"
@@ -339,7 +339,7 @@ export default function PlacerBoard({
             />
           </svg>
         </div>
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-muted-2">
           {visible.length} request{visible.length === 1 ? "" : "s"}
         </span>
       </div>

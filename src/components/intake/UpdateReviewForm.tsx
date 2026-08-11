@@ -139,13 +139,13 @@ export default function UpdateReviewForm({
 
   if (loadError) {
     return (
-      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+      <div className="rounded-lg border border-danger/30 bg-danger/15 p-3 text-sm text-danger">
         {loadError}
       </div>
     );
   }
   if (!current) {
-    return <p className="text-sm text-gray-500">Loading existing project…</p>;
+    return <p className="text-sm text-muted">Loading existing project…</p>;
   }
 
   const changed = FIELDS.filter(
@@ -156,10 +156,10 @@ export default function UpdateReviewForm({
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">
+        <h1 className="text-2xl font-semibold text-foreground">
           Review update to {String(current.codename ?? "project")}
         </h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-muted">
           Nothing changes until you apply. Check the fields to update; edit any
           proposed value first if needed. {changed.length} field
           {changed.length === 1 ? "" : "s"} differ from the current record.
@@ -167,7 +167,7 @@ export default function UpdateReviewForm({
       </div>
 
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-lg border border-danger/30 bg-danger/15 p-3 text-sm text-danger">
           {error}
         </div>
       )}
@@ -175,7 +175,7 @@ export default function UpdateReviewForm({
       <div className="card overflow-x-auto p-0">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-left text-xs text-gray-500">
+            <tr className="border-b border-line bg-green-tint text-left text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-muted">
               <th className="w-10 py-2 pl-3">Apply</th>
               <th className="py-2 pr-3">Field</th>
               <th className="py-2 pr-3">Current</th>
@@ -189,8 +189,8 @@ export default function UpdateReviewForm({
               return (
                 <tr
                   key={f.key}
-                  className={`border-b border-gray-100 align-top ${
-                    differs ? "bg-amber-50/40" : ""
+                  className={`border-b border-line align-top ${
+                    differs ? "bg-warn/10" : ""
                   }`}
                 >
                   <td className="py-2 pl-3">
@@ -205,10 +205,10 @@ export default function UpdateReviewForm({
                       }
                     />
                   </td>
-                  <td className="py-2 pr-3 font-medium text-gray-700">
+                  <td className="py-2 pr-3 font-medium text-foreground">
                     {f.label}
                   </td>
-                  <td className="py-2 pr-3 text-gray-500">
+                  <td className="py-2 pr-3 text-muted">
                     {cur === "" ? "—" : cur}
                   </td>
                   <td className="py-2 pr-3">
@@ -232,7 +232,7 @@ export default function UpdateReviewForm({
       </div>
 
       <div className="flex items-center justify-end gap-3">
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-muted">
           {appliedCount} field{appliedCount === 1 ? "" : "s"} selected
         </span>
         <button

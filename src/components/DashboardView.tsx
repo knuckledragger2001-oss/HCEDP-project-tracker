@@ -24,12 +24,15 @@ interface CommunityLite {
 }
 
 const BRAND = "#174c34";
-const ACCENT = "#6ba7c1";
+const ACCENT = "#3e86b0";
+// Neutral chart chrome: gridlines and axis-tick text.
+const GRID = "#e8eaed";
+const TICK = "#98a29b";
 
-// Distinct enough to tell eight slices apart, harmonized with the brand greens.
+// Distinct enough to tell eight slices apart, brand-first and restrained.
 const PIE_COLORS = [
-  "#174c34", "#2f6b4f", "#6ba7c1", "#d9a441",
-  "#8b5cf6", "#0d9488", "#dc2626", "#64748b",
+  "#174c34", "#3e86b0", "#9a6b15", "#6366f1",
+  "#0d9488", "#8b5cf6", "#b0402f", "#64748b",
 ];
 
 function quarterOptions(): string[] {
@@ -66,12 +69,12 @@ function Tile({
   return (
     <div className="card p-3">
       <p
-        className={`font-semibold tabular-nums ${emphasis ? "text-2xl text-brand" : "text-lg text-foreground"}`}
+        className={`mono font-semibold ${emphasis ? "text-2xl text-brand" : "text-lg text-foreground"}`}
       >
         {value}
       </p>
       <p className="mt-0.5 text-xs font-medium text-muted">{label}</p>
-      {hint && <p className="mt-0.5 text-[11px] text-gray-400">{hint}</p>}
+      {hint && <p className="mt-0.5 text-[11px] text-muted-2">{hint}</p>}
     </div>
   );
 }
@@ -96,7 +99,7 @@ function Panel({
 
 function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <p className="py-10 text-center text-xs text-gray-400">{children}</p>
+    <p className="py-10 text-center text-xs text-muted-2">{children}</p>
   );
 }
 
@@ -126,10 +129,10 @@ function SankeyNode({ x = 0, y = 0, width = 0, height = 0, payload }: SankeyNode
         textAnchor="start"
         dominantBaseline="middle"
         fontSize={11}
-        fill="#374151"
+        fill="#17211c"
       >
         {payload.name}
-        <tspan fill="#9ca3af"> {payload.value}</tspan>
+        <tspan fill="#98a29b"> {payload.value}</tspan>
       </text>
     </g>
   );
@@ -206,9 +209,9 @@ export default function DashboardView({
     if (!rates) return [];
     return [
       { name: "Won", value: rates.won, color: "#174c34" },
-      { name: "Lost", value: rates.lost, color: "#dc2626" },
+      { name: "Lost", value: rates.lost, color: "#b0402f" },
       { name: "No submission", value: rates.noSubmission, color: "#64748b" },
-      { name: "Still open", value: rates.open, color: "#6ba7c1" },
+      { name: "Still open", value: rates.open, color: "#3e86b0" },
     ].filter((d) => d.value > 0);
   }, [rates]);
 
@@ -358,9 +361,9 @@ export default function DashboardView({
             ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={report.rfisByMonth}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: TICK }} tickLine={false} axisLine={{ stroke: GRID }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: TICK }} tickLine={false} axisLine={{ stroke: GRID }} />
                   <Tooltip
                     cursor={{ fill: "rgba(23,76,52,0.06)" }}
                     formatter={(value) => [String(value), "RFIs"]}
@@ -406,13 +409,14 @@ export default function DashboardView({
               ) : (
                 <ResponsiveContainer width="100%" height={240}>
                   <BarChart data={report.byLeadSource} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
-                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID} horizontal={false} />
+                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: TICK }} axisLine={{ stroke: GRID }} tickLine={false} />
                     <YAxis
                       type="category"
                       dataKey="label"
                       width={140}
-                      tick={{ fontSize: 10 }}
+                      tick={{ fontSize: 10, fill: TICK }}
+                      axisLine={{ stroke: GRID }}
                       tickLine={false}
                     />
                     <Tooltip formatter={(value) => [String(value), "Projects"]} />
@@ -432,13 +436,14 @@ export default function DashboardView({
             ) : (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={report.byStatus} layout="vertical" margin={{ left: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID} horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: TICK }} axisLine={{ stroke: GRID }} tickLine={false} />
                   <YAxis
                     type="category"
                     dataKey="label"
                     width={130}
-                    tick={{ fontSize: 10 }}
+                    tick={{ fontSize: 10, fill: TICK }}
+                    axisLine={{ stroke: GRID }}
                     tickLine={false}
                   />
                   <Tooltip
@@ -472,7 +477,7 @@ export default function DashboardView({
                   </Sankey>
                 </ResponsiveContainer>
                 {report.sankey.projectsWithBackwardMoves > 0 && (
-                  <p className="mt-2 text-[11px] text-gray-400">
+                  <p className="mt-2 text-[11px] text-muted-2">
                     {report.sankey.projectsWithBackwardMoves} project
                     {report.sankey.projectsWithBackwardMoves === 1 ? "" : "s"} moved
                     backwards at some point (for example, Shortlisted back to Pending
@@ -519,7 +524,7 @@ export default function DashboardView({
                       <span className="truncate text-foreground" title={d.label}>
                         {d.label}
                       </span>
-                      <span className="ml-auto shrink-0 tabular-nums text-muted">
+                      <span className="mono ml-auto shrink-0 text-muted">
                         {d.count}
                       </span>
                     </li>

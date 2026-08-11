@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import Board from "@/components/Board";
+import PipelineWorkspace from "@/components/pipeline/PipelineWorkspace";
+import { NewRfiIcon } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export default async function BoardPage() {
       stage: true,
       naicsCode: true,
       industryDescription: true,
+      jobs: true,
       minAcreage: true,
       minBuildingSqFt: true,
       capexTotal: true,
@@ -33,6 +35,7 @@ export default async function BoardPage() {
     stage: p.stage,
     naicsCode: p.naicsCode,
     industryDescription: p.industryDescription,
+    jobs: p.jobs,
     minAcreage: p.minAcreage,
     minBuildingSqFt: p.minBuildingSqFt,
     capexTotal: p.capexTotal ? p.capexTotal.toString() : null,
@@ -45,19 +48,22 @@ export default async function BoardPage() {
   }));
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Pipeline</h1>
-          <p className="text-sm text-gray-500">
-            Drag a card between columns to change stage.
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Pipeline
+          </h1>
+          <p className="mt-1 text-sm text-muted">
+            {data.length} project{data.length === 1 ? "" : "s"}. Drag cards on the
+            board to change stage, or switch to the table to sort and scan.
           </p>
         </div>
         <Link href="/intake" className="btn-primary">
-          + New RFI
+          <NewRfiIcon className="h-4 w-4" /> New RFI
         </Link>
       </div>
-      <Board initialProjects={data} />
+      <PipelineWorkspace initialProjects={data} />
     </div>
   );
 }

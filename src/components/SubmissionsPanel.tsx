@@ -182,14 +182,14 @@ export default function SubmissionsPanel({
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {/* Add submission */}
-      <div className="rounded-md border border-gray-200 p-3">
-        <p className="text-sm font-semibold text-gray-800">Submit a site</p>
+      <div className="rounded-lg border border-line bg-surface-2 p-3">
+        <p className="text-sm font-semibold text-foreground">Submit a site</p>
         <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
           <select
             className="input md:col-span-2"
@@ -256,7 +256,7 @@ export default function SubmissionsPanel({
 
         {/* Quick-create site */}
         <details className="mt-3">
-          <summary className="cursor-pointer text-xs font-medium text-brand">
+          <summary className="cursor-pointer text-xs font-medium text-accent-ink transition-colors hover:text-brand-dark">
             + Quick-create a new site
           </summary>
           <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-4">
@@ -301,30 +301,30 @@ export default function SubmissionsPanel({
           tracked here — site visits are recorded under Source & dates and the
           project's own stage drives shortlist/site-visit/won reporting. */}
       {submissions.length === 0 ? (
-        <p className="text-sm text-gray-400">No sites submitted yet.</p>
+        <p className="text-sm text-muted-2">No sites submitted yet.</p>
       ) : (
         <div className="space-y-3">
           {grouped.map(([community, subs]) => (
             <div key={community}>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
                 {community} · {subs.length}
               </p>
-              <div className="divide-y divide-gray-100 rounded-md border border-gray-200">
+              <div className="divide-y divide-line rounded-lg border border-line">
                 {subs.map((s) => (
                   <div
                     key={s.id}
                     className="flex items-center justify-between gap-2 px-3 py-2"
                   >
                     <div>
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-foreground">
                         {s.site.name}
                       </span>
-                      <span className="ml-2 text-xs text-gray-400">
+                      <span className="mono ml-2 text-xs text-muted-2">
                         {formatDate(s.submissionDate)}
                       </span>
                     </div>
                     <button
-                      className="text-xs text-red-500 hover:underline"
+                      className="text-xs font-medium text-danger transition-colors hover:text-red-700"
                       onClick={() => remove(s.id)}
                     >
                       remove

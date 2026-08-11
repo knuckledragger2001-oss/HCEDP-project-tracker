@@ -34,6 +34,28 @@ export interface ChangelogEntry {
 // Newest entry first. Add new releases at the top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "2026.08.11",
+    date: "2026-08-11",
+    title: "A refreshed look across the app",
+    items: [
+      {
+        tag: "improved",
+        text:
+          "The whole app has a cleaner, more modern look: a light neutral background with white cards, and HCEDP green used as a highlight for buttons, links, and the active menu item. Every screen (pipeline, sites, leads, dashboard, reports, intake, project pages, and Placer requests) now shares the same style, so things feel consistent wherever you are.",
+      },
+      {
+        tag: "new",
+        text:
+          "Navigation moved to a sidebar on the left, so every area is one click away and there's more room for the board and tables. It shrinks to just icons on smaller screens.",
+      },
+      {
+        tag: "new",
+        text:
+          "The Pipeline now has a Table view alongside the board. Use the Board / Table toggle at the top left: the board is best for moving projects between stages, the table is best for sorting and scanning many projects at once. Your filters and search apply to both, and your choice is remembered.",
+      },
+    ],
+  },
+  {
     version: "2026.08.10",
     date: "2026-08-10",
     title: "Add Placer requests yourself",

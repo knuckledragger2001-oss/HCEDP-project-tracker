@@ -113,8 +113,8 @@ export default function IntakeForm() {
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">New RFI intake</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-2xl font-semibold text-foreground">New RFI intake</h1>
+          <p className="text-sm text-muted">
             Paste the full RFI email and attach any supplemental files. Claude
             extracts the fields; you review and edit before anything is saved.
           </p>
@@ -125,13 +125,13 @@ export default function IntakeForm() {
       </div>
 
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-lg border border-danger/30 bg-danger/15 p-3 text-sm text-danger">
           {error}
         </div>
       )}
 
       <div className="card p-4">
-        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
           <input
             type="checkbox"
             checked={updateMode}
@@ -156,7 +156,7 @@ export default function IntakeForm() {
                 </option>
               ))}
             </select>
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-2 text-xs text-muted">
               After parsing, you&apos;ll review each changed field and choose what
               to apply. The original is not modified until you confirm.
             </p>
@@ -168,7 +168,7 @@ export default function IntakeForm() {
         <label className="block">
           <span className="label">Pasted RFI email</span>
           <textarea
-            className="input font-mono text-sm"
+            className="input mono text-sm"
             rows={16}
             placeholder="Paste the full forwarded RFI email here…"
             value={emailText}
@@ -183,21 +183,21 @@ export default function IntakeForm() {
             type="file"
             multiple
             accept=".pdf,.xlsx,.xls,.docx,.pptx,.png,.jpg,.jpeg,.gif,.webp"
-            className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-2 file:text-white hover:file:bg-brand-dark"
+            className="block w-full text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand file:px-3 file:py-2 file:font-semibold file:text-white hover:file:bg-brand-dark"
             onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
           />
           {files.length > 0 && (
-            <ul className="mt-2 list-disc pl-5 text-xs text-gray-500">
+            <ul className="mt-2 list-disc pl-5 text-xs text-muted">
               {files.map((f) => (
                 <li key={f.name}>
-                  {f.name} ({Math.round(f.size / 1024)} KB)
+                  {f.name} <span className="mono">({Math.round(f.size / 1024)} KB)</span>
                 </li>
               ))}
             </ul>
           )}
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-gray-600">
+        <label className="flex items-center gap-2 text-sm text-muted">
           <input
             type="checkbox"
             checked={highEffort}

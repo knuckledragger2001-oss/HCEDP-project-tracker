@@ -84,10 +84,10 @@ function Card({
   const urgency = followUpUrgency(lead);
   const dateCls =
     urgency === "overdue"
-      ? "font-medium text-red-600"
+      ? "font-semibold text-danger"
       : urgency === "soon"
-        ? "font-medium text-yellow-600"
-        : "text-gray-500";
+        ? "font-semibold text-warn"
+        : "text-muted";
 
   const convertible = lead.stage !== "CONVERTED" && lead.stage !== "DEAD";
 
@@ -123,7 +123,7 @@ function Card({
         <button
           {...listeners}
           {...attributes}
-          className="-mt-0.5 -mr-1 cursor-grab rounded px-1 text-gray-300 hover:bg-brand/5 hover:text-brand"
+          className="-mt-0.5 -mr-1 cursor-grab rounded px-1 text-muted-2 hover:bg-brand/5 hover:text-brand"
           aria-label="Drag"
           title="Drag to move stage"
         >
@@ -137,20 +137,20 @@ function Card({
         </p>
       )}
       {lead.contactName && (
-        <p className="truncate text-[11px] text-gray-400" title={lead.contactName}>
+        <p className="truncate text-[11px] text-muted-2" title={lead.contactName}>
           {lead.contactName}
         </p>
       )}
 
       {/* One compact meta row: next follow-up (left), estimated size (right). */}
       <div className="mt-1 flex items-center justify-between gap-2 text-[11px] leading-tight">
-        <span className={dateCls}>
+        <span className={`mono min-w-0 truncate ${dateCls}`}>
           {lead.nextFollowUpDate
             ? `Follow up ${formatDate(lead.nextFollowUpDate)}`
             : ""}
         </span>
         {lead.estimatedCapex && (
-          <span className="badge shrink-0 bg-accent/15 text-accent-dark">
+          <span className="badge mono shrink-0 bg-info/15 text-accent-dark">
             {formatCurrency(lead.estimatedCapex)}
           </span>
         )}
@@ -177,7 +177,7 @@ function Card({
         <button
           type="button"
           onClick={onDelete}
-          className="ml-auto rounded p-0.5 text-gray-300 hover:bg-red-50 hover:text-red-600"
+          className="ml-auto rounded p-0.5 text-muted-2 hover:bg-red-50 hover:text-red-600"
           aria-label={`Delete ${title}`}
           title="Delete lead"
         >
@@ -219,13 +219,13 @@ function Column({
         ref={droppable ? setNodeRef : undefined}
         className={`flex min-h-24 flex-1 flex-col gap-2 rounded-xl border p-1.5 transition-colors ${
           isOver && droppable
-            ? "border-accent/40 bg-accent/10"
-            : "border-line/70 bg-brand/[0.03]"
+            ? "border-brand/40 bg-green-tint"
+            : "border-line bg-surface-2"
         }`}
       >
         {children}
         {leads.length === 0 && (
-          <p className="px-1 py-3 text-center text-[11px] text-gray-400">Empty</p>
+          <p className="px-1 py-3 text-center text-[11px] text-muted-2">Empty</p>
         )}
       </div>
     </div>
@@ -393,8 +393,8 @@ export default function LeadsBoard({ initialLeads }: { initialLeads: BoardLead[]
         >
           New lead
         </button>
-        <span className="text-xs text-gray-400">
-          {leads.length} lead{leads.length === 1 ? "" : "s"}
+        <span className="text-xs text-muted-2">
+          <span className="mono">{leads.length}</span> lead{leads.length === 1 ? "" : "s"}
         </span>
       </div>
 

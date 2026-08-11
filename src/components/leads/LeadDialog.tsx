@@ -145,7 +145,7 @@ export default function LeadDialog({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-2xl rounded-xl bg-surface p-5 shadow-xl">
+      <div className="card w-full max-w-2xl p-5 shadow-xl">
         <h2 className="text-base font-semibold text-foreground">
           {lead ? `Edit ${leadDisplayName(lead)}` : "New lead"}
         </h2>

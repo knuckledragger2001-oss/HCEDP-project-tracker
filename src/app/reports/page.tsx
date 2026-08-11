@@ -19,8 +19,8 @@ export default async function ReportsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Reports</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-lg font-semibold text-foreground">Reports</h1>
+        <p className="text-sm text-muted">
           Partner-facing activity and submission summaries. Filter, preview, then
           export to PDF or Excel.
         </p>

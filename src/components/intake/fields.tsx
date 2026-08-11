@@ -19,7 +19,7 @@ export function Field({
         {label}
         {flagged && (
           <span
-            className="badge bg-amber-100 text-amber-800"
+            className="badge bg-warn/15 text-warn"
             title="Parser assumed or converted this value — please verify."
           >
             verify
@@ -27,7 +27,7 @@ export function Field({
         )}
       </span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-gray-400">{hint}</span>}
+      {hint && <span className="mt-1 block text-xs text-muted-2">{hint}</span>}
     </label>
   );
 }
@@ -82,7 +82,7 @@ export function NumberInput({
   return (
     <input
       type="number"
-      className="input"
+      className="input mono"
       value={value ?? ""}
       placeholder={placeholder}
       onChange={(e) =>
@@ -102,7 +102,7 @@ export function DateInput({
   return (
     <input
       type="date"
-      className="input"
+      className="input mono"
       value={value}
       onChange={(e) => onChange(e.target.value)}
     />
@@ -144,9 +144,9 @@ export function Section({
 }) {
   return (
     <section className="card p-4">
-      <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
       {description && (
-        <p className="mt-0.5 text-xs text-gray-500">{description}</p>
+        <p className="mt-0.5 text-xs text-muted">{description}</p>
       )}
       <div className="mt-3 space-y-3">{children}</div>
     </section>

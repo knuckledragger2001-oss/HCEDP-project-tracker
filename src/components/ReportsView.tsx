@@ -189,7 +189,7 @@ export default function ReportsView({
 
         {kind === "provider-activity" && (
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-gray-500">Group by</span>
+            <span className="text-xs font-medium text-muted">Group by</span>
             <div className="flex gap-1">
               <button
                 className={
@@ -350,13 +350,13 @@ export default function ReportsView({
           </div>
         </div>
         {kind === "lead-source" && (
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-muted-2">
             Lead Source is a project-level report; the date filter applies to RFI
             receipt date. Community and provider filters do not apply.
           </p>
         )}
         {kind === "site-visits" && (
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-muted-2">
             Site Visits lists projects visited within the selected date range
             (the date filter applies to the visit date). Community and provider
             filters do not apply.
@@ -405,43 +405,43 @@ function SiteVisitResult({ report }: { report: SiteVisitReport }) {
   return (
     <div className="space-y-4">
       <FilterEcho f={report.filters} />
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-muted">
         {report.totals.projects} project
         {report.totals.projects === 1 ? "" : "s"} · {report.totals.visits} site
         visit{report.totals.visits === 1 ? "" : "s"}
       </p>
       {report.rows.length === 0 ? (
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-muted-2">
           No site visits match these filters.
         </p>
       ) : (
         report.rows.map((r) => (
           <div key={r.projectId} className="card p-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-900">
+              <h3 className="text-sm font-semibold text-foreground">
                 {r.codename}
-                <span className="ml-2 text-xs font-normal text-gray-500">
+                <span className="ml-2 text-xs font-normal text-muted">
                   {STAGE_LABELS[r.stage] ?? r.stage}
                   {r.naicsCode ? ` · NAICS ${r.naicsCode}` : ""}
                   {r.companyLocation ? ` · ${r.companyLocation}` : ""}
                 </span>
               </h3>
-              <span className="badge bg-gray-100 text-gray-600">
+              <span className="badge bg-surface-2 text-muted">
                 {r.visits.length} visit{r.visits.length === 1 ? "" : "s"}
               </span>
             </div>
             <table className="mt-2 w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-gray-400">
+                <tr className="text-left text-xs text-muted-2">
                   <th className="py-1">Visit date</th>
                   <th className="py-1">Note</th>
                 </tr>
               </thead>
               <tbody>
                 {r.visits.map((v, i) => (
-                  <tr key={i} className="border-t border-gray-100">
-                    <td className="py-1 text-gray-900">{formatDate(v.date)}</td>
-                    <td className="py-1 text-gray-600">{v.note ?? "—"}</td>
+                  <tr key={i} className="border-t border-line">
+                    <td className="mono py-1 text-foreground">{formatDate(v.date)}</td>
+                    <td className="py-1 text-muted">{v.note ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -462,7 +462,7 @@ function ProviderActivityResult({
   return (
     <div className="space-y-4">
       <FilterEcho f={report.filters} />
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-muted">
         Grouped by {dim} provider · {report.totals.providers} provider
         {report.totals.providers === 1 ? "" : "s"} · {report.totals.projects}{" "}
         project{report.totals.projects === 1 ? "" : "s"} ·{" "}
@@ -470,7 +470,7 @@ function ProviderActivityResult({
         {report.totals.submissions === 1 ? "" : "s"}
       </p>
       {report.groups.length === 0 ? (
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-muted-2">
           No submissions match these filters.
         </p>
       ) : (
@@ -480,7 +480,7 @@ function ProviderActivityResult({
               <h3 className="text-sm font-semibold text-brand">
                 {g.providerName}
               </h3>
-              <span className="badge bg-gray-100 text-gray-600">
+              <span className="badge bg-surface-2 text-muted">
                 {g.projectCount} project{g.projectCount === 1 ? "" : "s"} ·{" "}
                 {g.submissionCount} submission{g.submissionCount === 1 ? "" : "s"}
               </span>
@@ -510,37 +510,37 @@ function naicsText(code: string | null): string | null {
 function ProjectBlock({ p }: { p: CityActivityProject }) {
   const naics = naicsText(p.naicsCode);
   return (
-    <div className="rounded-md border border-gray-100 bg-gray-50/40 p-2">
-      <p className="text-sm font-semibold text-gray-900">
+    <div className="rounded-md border border-line bg-surface-2 p-2">
+      <p className="text-sm font-semibold text-foreground">
         {p.codename}
-        <span className="ml-2 text-xs font-normal text-gray-500">
+        <span className="ml-2 text-xs font-normal text-muted">
           {STAGE_LABELS[p.stage] ?? p.stage}
           {p.rfiReceivedDate ? ` · Active ${formatDate(p.rfiReceivedDate)}` : ""}
         </span>
       </p>
-      {naics && <p className="text-xs text-gray-500">{naics}</p>}
-      <div className="mt-1 flex flex-wrap gap-x-6 gap-y-0.5 text-xs text-gray-600">
+      {naics && <p className="text-xs text-muted">{naics}</p>}
+      <div className="mt-1 flex flex-wrap gap-x-6 gap-y-0.5 text-xs text-muted">
         <span>
           Capex:{" "}
-          <span className="font-medium text-gray-900">
+          <span className="mono font-medium text-foreground">
             {p.capexTotal != null ? formatCurrency(p.capexTotal) : "—"}
           </span>
         </span>
         <span>
           Jobs:{" "}
-          <span className="font-medium text-gray-900">
+          <span className="mono font-medium text-foreground">
             {p.jobs != null ? formatNumber(p.jobs) : "—"}
           </span>
         </span>
         <span>
           Avg wage:{" "}
-          <span className="font-medium text-gray-900">
+          <span className="mono font-medium text-foreground">
             {p.avgWage != null ? formatCurrency(p.avgWage) : "—"}
           </span>
         </span>
       </div>
-      <p className="mt-1 text-xs text-gray-600">
-        <span className="text-gray-400">Sites: </span>
+      <p className="mt-1 text-xs text-muted">
+        <span className="text-muted-2">Sites: </span>
         {p.sites.map((s) => s.siteName).join(", ") || "—"}
       </p>
     </div>
@@ -561,7 +561,7 @@ function FilterEcho({
   };
 }) {
   return (
-    <p className="text-xs text-gray-500">
+    <p className="text-xs text-muted">
       {f.community} · {f.county} · {f.period} · NAICS {f.naics} · Stage {f.stage}
       {f.electricProvider ? ` · Electric: ${f.electricProvider}` : ""}
       {f.waterProvider ? ` · Water: ${f.waterProvider}` : ""}
@@ -577,7 +577,7 @@ function CityActivityResult({ report }: { report: CityActivityReport }) {
   return (
     <div className="space-y-4">
       <FilterEcho f={report.filters} />
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-muted">
         {report.totals.communities} communit
         {report.totals.communities === 1 ? "y" : "ies"} ·{" "}
         {report.totals.projects} project
@@ -585,7 +585,7 @@ function CityActivityResult({ report }: { report: CityActivityReport }) {
         submission{report.totals.submissions === 1 ? "" : "s"}
       </p>
       {report.communities.length === 0 ? (
-        <p className="text-sm text-gray-400">No submissions match these filters.</p>
+        <p className="text-sm text-muted-2">No submissions match these filters.</p>
       ) : (
         report.communities.map((c) => (
           <div key={c.communityId} className="card p-4">
@@ -593,7 +593,7 @@ function CityActivityResult({ report }: { report: CityActivityReport }) {
               <h3 className="text-sm font-semibold text-brand">
                 {c.communityName}
               </h3>
-              <span className="badge bg-gray-100 text-gray-600">
+              <span className="badge bg-surface-2 text-muted">
                 {c.projectCount} project{c.projectCount === 1 ? "" : "s"} ·{" "}
                 {c.submissionCount} submission{c.submissionCount === 1 ? "" : "s"}
               </span>
@@ -616,13 +616,13 @@ function QuarterlyResult({ report }: { report: QuarterlyReport }) {
       <FilterEcho f={report.filters} />
       <div className="card p-4">
         {report.rows.length === 0 ? (
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-muted-2">
             No submissions match these filters.
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-400">
+              <tr className="text-left text-xs text-muted-2">
                 <th className="py-1">Community</th>
                 <th className="py-1 text-right">Submissions</th>
                 <th className="py-1 text-right">Projects</th>
@@ -633,28 +633,28 @@ function QuarterlyResult({ report }: { report: QuarterlyReport }) {
             </thead>
             <tbody>
               {report.rows.map((r) => (
-                <tr key={r.communityId} className="border-t border-gray-100">
-                  <td className="py-1 font-medium text-gray-900">
+                <tr key={r.communityId} className="border-t border-line">
+                  <td className="py-1 font-medium text-foreground">
                     {r.communityName}
                   </td>
-                  <td className="py-1 text-right text-gray-600">
+                  <td className="mono py-1 text-right text-muted">
                     {r.submissions}
                   </td>
-                  <td className="py-1 text-right text-gray-600">{r.projects}</td>
-                  <td className="py-1 text-right text-gray-600">{r.active}</td>
-                  <td className="py-1 text-right text-green-700">{r.won}</td>
-                  <td className="py-1 text-right text-red-600">{r.lost}</td>
+                  <td className="mono py-1 text-right text-muted">{r.projects}</td>
+                  <td className="mono py-1 text-right text-muted">{r.active}</td>
+                  <td className="mono py-1 text-right text-green-700">{r.won}</td>
+                  <td className="mono py-1 text-right text-red-600">{r.lost}</td>
                 </tr>
               ))}
-              <tr className="border-t-2 border-gray-200 font-semibold">
-                <td className="py-1 text-gray-900">Total</td>
-                <td className="py-1 text-right">{report.totals.submissions}</td>
-                <td className="py-1 text-right">{report.totals.projects}</td>
-                <td className="py-1 text-right">{report.totals.active}</td>
-                <td className="py-1 text-right text-green-700">
+              <tr className="border-t-2 border-line-2 font-semibold">
+                <td className="py-1 text-foreground">Total</td>
+                <td className="mono py-1 text-right">{report.totals.submissions}</td>
+                <td className="mono py-1 text-right">{report.totals.projects}</td>
+                <td className="mono py-1 text-right">{report.totals.active}</td>
+                <td className="mono py-1 text-right text-green-700">
                   {report.totals.won}
                 </td>
-                <td className="py-1 text-right text-red-600">
+                <td className="mono py-1 text-right text-red-600">
                   {report.totals.lost}
                 </td>
               </tr>
@@ -672,14 +672,14 @@ function LeadSourceResult({ report }: { report: LeadSourceReport }) {
       <FilterEcho f={report.filters} />
       <div className="card p-4">
         {report.rows.length === 0 ? (
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-muted-2">
             No projects match these filters.
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-gray-400">
+                <tr className="text-left text-xs text-muted-2">
                   <th className="py-1 pr-3">Lead source</th>
                   <th className="py-1 px-2 text-right">Projects</th>
                   <th className="py-1 px-2 text-right">Won</th>
@@ -694,60 +694,60 @@ function LeadSourceResult({ report }: { report: LeadSourceReport }) {
               </thead>
               <tbody>
                 {report.rows.map((r) => (
-                  <tr key={r.leadSource} className="border-t border-gray-100">
-                    <td className="py-1 pr-3 font-medium text-gray-900">
+                  <tr key={r.leadSource} className="border-t border-line">
+                    <td className="py-1 pr-3 font-medium text-foreground">
                       {r.leadSourceLabel}
                     </td>
-                    <td className="py-1 px-2 text-right text-gray-600">
+                    <td className="mono py-1 px-2 text-right text-muted">
                       {r.projects}
                     </td>
-                    <td className="py-1 px-2 text-right text-green-700">
+                    <td className="mono py-1 px-2 text-right text-green-700">
                       {r.won}
                     </td>
-                    <td className="py-1 px-2 text-right text-red-600">{r.lost}</td>
-                    <td className="py-1 px-2 text-right text-gray-600">
+                    <td className="mono py-1 px-2 text-right text-red-600">{r.lost}</td>
+                    <td className="mono py-1 px-2 text-right text-muted">
                       {r.active}
                     </td>
-                    <td className="py-1 px-2 text-right text-gray-900">
+                    <td className="mono py-1 px-2 text-right text-foreground">
                       {pct(r.successRate)}
                     </td>
-                    <td className="py-1 px-2 text-right text-gray-600">
+                    <td className="mono py-1 px-2 text-right text-muted">
                       {r.avgDaysToSubmit == null
                         ? "—"
                         : Math.round(r.avgDaysToSubmit)}
                     </td>
-                    <td className="py-1 px-2 text-right text-gray-600">
+                    <td className="mono py-1 px-2 text-right text-muted">
                       {formatNumber(r.peakJobs)}
                     </td>
-                    <td className="py-1 px-2 text-right text-gray-600">
+                    <td className="mono py-1 px-2 text-right text-muted">
                       {r.avgAcreage == null ? "—" : Math.round(r.avgAcreage)}
                     </td>
-                    <td className="py-1 px-2 text-right text-gray-600">
+                    <td className="mono py-1 px-2 text-right text-muted">
                       {r.industries}
                     </td>
                   </tr>
                 ))}
-                <tr className="border-t-2 border-gray-200 font-semibold">
-                  <td className="py-1 pr-3 text-gray-900">Total</td>
-                  <td className="py-1 px-2 text-right">
+                <tr className="border-t-2 border-line-2 font-semibold">
+                  <td className="py-1 pr-3 text-foreground">Total</td>
+                  <td className="mono py-1 px-2 text-right">
                     {report.totals.projects}
                   </td>
-                  <td className="py-1 px-2 text-right text-green-700">
+                  <td className="mono py-1 px-2 text-right text-green-700">
                     {report.totals.won}
                   </td>
-                  <td className="py-1 px-2 text-right text-red-600">
+                  <td className="mono py-1 px-2 text-right text-red-600">
                     {report.totals.lost}
                   </td>
-                  <td className="py-1 px-2 text-right">
+                  <td className="mono py-1 px-2 text-right">
                     {report.totals.active}
                   </td>
-                  <td className="py-1 px-2 text-right">—</td>
-                  <td className="py-1 px-2 text-right">—</td>
-                  <td className="py-1 px-2 text-right">
+                  <td className="mono py-1 px-2 text-right">—</td>
+                  <td className="mono py-1 px-2 text-right">—</td>
+                  <td className="mono py-1 px-2 text-right">
                     {formatNumber(report.totals.peakJobs)}
                   </td>
-                  <td className="py-1 px-2 text-right">—</td>
-                  <td className="py-1 px-2 text-right">—</td>
+                  <td className="mono py-1 px-2 text-right">—</td>
+                  <td className="mono py-1 px-2 text-right">—</td>
                 </tr>
               </tbody>
             </table>

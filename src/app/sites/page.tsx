@@ -26,8 +26,8 @@ export default async function SitesPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Sites</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-lg font-semibold text-foreground">Sites</h1>
+        <p className="text-sm text-muted">
           Real estate sites we can submit, grouped by community.
         </p>
       </div>

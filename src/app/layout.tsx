@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import "./globals.css";
-import { getCurrentUser, isInternal } from "@/lib/auth/session";
+import { getCurrentUser } from "@/lib/auth/session";
 import { partnerCityLabel } from "@/lib/placer/schema";
-import { logout } from "./login/actions";
-import { BrandLockup } from "@/components/brand/Logo";
-import MainNav, { type NavGroup } from "@/components/Nav";
+import AppSidebar, {
+  type SideGroup,
+  type SidebarUser,
+} from "@/components/shell/AppSidebar";
 import AppProviders from "@/components/ui/AppProviders";
 import WhatsNew from "@/components/whatsnew/WhatsNew";
 import { CHANGELOG, entriesNewerThan } from "@/lib/changelog";
@@ -22,38 +22,58 @@ export const metadata: Metadata = {
     "Hays Caldwell EDP — RFI intake, pipeline, sites and partner reporting.",
 };
 
-// Nav is grouped into tinted clusters so related destinations read as a set.
-// Group 1 (projects workflow), Group 2 (analytics), Group 3 (placer). Admin-only
-// "Users" is appended as a standalone (plain) group. See MainNav for the tints.
-const NAV_GROUPS: NavGroup[] = [
+// Sidebar navigation, grouped so related destinations read as a set. Items carry
+// a plain string icon key (see AppSidebar) so the data crosses to the client
+// component without shipping React elements.
+const NAV_GROUPS: SideGroup[] = [
   {
-    tone: "projects",
+    label: "Menu",
     items: [
-      { href: "/intake", label: "New RFI" },
-      { href: "/", label: "Pipeline" },
-      { href: "/sites", label: "Sites" },
-      { href: "/leads", label: "Leads" },
+      { href: "/", label: "Pipeline", icon: "pipeline" },
+      { href: "/intake", label: "New RFI", icon: "newRfi" },
+      { href: "/sites", label: "Sites", icon: "sites" },
+      { href: "/leads", label: "Leads", icon: "leads" },
     ],
   },
   {
-    tone: "analytics",
+    label: "Explore",
     items: [
-      { href: "/dashboard", label: "Dashboard" },
-      { href: "/reports", label: "Reports" },
+      { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+      { href: "/reports", label: "Reports", icon: "reports" },
+      { href: "/placer", label: "Placer requests", icon: "placer" },
     ],
-  },
-  {
-    tone: "placer",
-    items: [{ href: "/placer", label: "Placer Requests" }],
   },
 ];
 
+const ADMIN_GROUP: SideGroup = {
+  label: "Admin",
+  items: [{ href: "/admin/users", label: "Users", icon: "users" }],
+};
+
 // Partners only ever see their own submission area.
-const PARTNER_NAV_GROUPS: NavGroup[] = [
-  { tone: "placer", items: [{ href: "/requests", label: "Placer Requests" }] },
+const PARTNER_NAV_GROUPS: SideGroup[] = [
+  {
+    items: [{ href: "/requests", label: "Placer requests", icon: "placer" }],
+  },
 ];
 
 const HTML_CLASS = "h-full antialiased";
+
+// The muted context label shown on the left of the top utility bar, so a person
+// always knows which area they're in. Falls back to the org name.
+function sectionTitle(pathname: string): string {
+  if (pathname === "/") return "Pipeline";
+  if (pathname.startsWith("/projects")) return "Project";
+  if (pathname.startsWith("/intake")) return "New RFI";
+  if (pathname.startsWith("/sites")) return "Sites";
+  if (pathname.startsWith("/leads")) return "Leads";
+  if (pathname.startsWith("/dashboard")) return "Dashboard";
+  if (pathname.startsWith("/reports")) return "Reports";
+  if (pathname.startsWith("/placer") || pathname.startsWith("/requests"))
+    return "Placer requests";
+  if (pathname.startsWith("/admin/users")) return "Users";
+  return "HCEDP";
+}
 
 export default async function RootLayout({
   children,
@@ -83,14 +103,23 @@ export default async function RootLayout({
   if (partner && !onPartnerArea) redirect("/requests");
   if (!partner && onPartnerArea) redirect("/placer");
 
-  const navGroups: NavGroup[] = partner
+  const navGroups: SideGroup[] = partner
     ? PARTNER_NAV_GROUPS
     : user.role === "ADMIN"
-      ? [
-          ...NAV_GROUPS,
-          { tone: "plain", items: [{ href: "/admin/users", label: "Users" }] },
-        ]
+      ? [...NAV_GROUPS, ADMIN_GROUP]
       : NAV_GROUPS;
+
+  const roleLabel = partner
+    ? partnerCityLabel(user.partnerCity)
+    : user.role === "ADMIN"
+      ? "HCEDP · Admin"
+      : "HCEDP · Staff";
+
+  const sidebarUser: SidebarUser = {
+    name: user.name,
+    email: user.email,
+    roleLabel,
+  };
 
   const unseenChangelog = partner ? [] : entriesNewerThan(user.lastSeenChangelog);
 
@@ -99,48 +128,40 @@ export default async function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${HTML_CLASS}`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full">
         <AppProviders>
-        <header className="sticky top-0 z-20 border-b border-line bg-surface">
-          <div className="mx-auto flex max-w-7xl items-center gap-6 px-4 py-2.5">
-            <Link href="/" className="shrink-0">
-              <BrandLockup />
-            </Link>
-            <MainNav groups={navGroups} />
-            <div className="ml-auto flex items-center gap-3">
-              {!partner && (
-                <WhatsNew
-                  entries={CHANGELOG}
-                  unseenVersions={unseenChangelog.map((e) => e.version)}
-                />
-              )}
-              <span
-                className="hidden items-center gap-2 text-sm text-muted sm:flex"
-                title={user.email}
-              >
-                {user.role === "ADMIN" && (
-                  <span className="badge bg-accent/15 text-accent-dark">Admin</span>
-                )}
-                {partner && (
-                  <span className="badge bg-accent/15 text-accent-dark">
-                    {partnerCityLabel(user.partnerCity)}
-                  </span>
-                )}
-                <span className="font-medium text-foreground">
-                  {user.name ?? user.email}
+          {/* Two-column app frame: a persistent sidebar that collapses to a
+              64px icon rail below 1000px, and the main column beside it. The
+              breakpoint matches AppSidebar's label visibility exactly. */}
+          <div className="grid min-h-screen grid-cols-[64px_1fr] min-[1000px]:grid-cols-[236px_1fr]">
+            <AppSidebar groups={navGroups} user={sidebarUser} />
+
+            <div className="flex min-w-0 flex-col">
+              {/* Slim top utility bar: context on the left, actions on the right. */}
+              <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-line bg-surface/85 px-5 py-2.5 backdrop-blur">
+                <span className="text-sm font-semibold text-muted">
+                  {sectionTitle(pathname)}
                 </span>
-              </span>
-              <form action={logout}>
-                <button type="submit" className="nav-link">
-                  Sign out
-                </button>
-              </form>
+                <div className="flex items-center gap-3">
+                  {!partner && (
+                    <WhatsNew
+                      entries={CHANGELOG}
+                      unseenVersions={unseenChangelog.map((e) => e.version)}
+                    />
+                  )}
+                  {(user.role === "ADMIN" || partner) && (
+                    <span className="badge bg-info/15 text-accent-dark">
+                      {partner ? partnerCityLabel(user.partnerCity) : "Admin"}
+                    </span>
+                  )}
+                </div>
+              </header>
+
+              <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-6">
+                {children}
+              </main>
             </div>
           </div>
-        </header>
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
-          {children}
-        </main>
         </AppProviders>
       </body>
     </html>

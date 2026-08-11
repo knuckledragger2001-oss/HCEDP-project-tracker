@@ -74,10 +74,10 @@ export default async function PlacerQueuePage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">
+          <h1 className="text-2xl font-semibold text-foreground">
             Placer AI Requests
           </h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted">
             {openCount} open · drag a card to change status, or open one to add
             notes and results.
           </p>

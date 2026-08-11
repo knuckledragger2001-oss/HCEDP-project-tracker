@@ -87,16 +87,16 @@ function SectionShell({
   const bare = useContext(BareSection);
 
   const controls = editing ? (
-    <div className="flex gap-2">
+    <div className="flex gap-3">
       <button
-        className="text-xs text-gray-500 hover:underline"
+        className="text-xs font-medium text-muted transition-colors hover:text-foreground"
         onClick={onCancel}
         disabled={saving}
       >
         Cancel
       </button>
       <button
-        className="text-xs font-medium text-brand hover:underline"
+        className="text-xs font-semibold text-accent-ink transition-colors hover:text-brand-dark"
         onClick={onSave}
         disabled={saving}
       >
@@ -105,7 +105,7 @@ function SectionShell({
     </div>
   ) : (
     <button
-      className="text-xs font-medium text-brand hover:underline"
+      className="text-xs font-semibold text-muted-2 transition-colors hover:text-brand"
       onClick={onEdit}
     >
       Edit
@@ -129,7 +129,7 @@ function SectionShell({
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         {controls}
       </div>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
@@ -140,9 +140,9 @@ function SectionShell({
 
 function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex justify-between gap-4 py-1 text-sm">
-      <span className="text-gray-500">{label}</span>
-      <span className="text-right font-medium text-gray-900">{value}</span>
+    <div className="flex justify-between gap-4 border-b border-line py-1.5 text-sm last:border-0">
+      <span className="text-muted">{label}</span>
+      <span className="text-right font-medium text-foreground">{value}</span>
     </div>
   );
 }
@@ -193,12 +193,16 @@ export function EditableHeader(props: {
     return (
       <div className="flex items-start gap-2">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             {props.codename}
           </h1>
-          <div className="mt-1 space-y-0.5 text-sm text-gray-500">
+          <div className="mt-1 space-y-0.5 text-sm text-muted">
             <p>
-              {props.naicsCode ? `NAICS ${props.naicsCode}` : ""}
+              {props.naicsCode ? (
+                <span className="mono">NAICS {props.naicsCode}</span>
+              ) : (
+                ""
+              )}
               {props.naicsCode && props.industryDescription ? " — " : ""}
               {props.industryDescription ??
                 (props.naicsCode ? "" : "—")}
@@ -207,7 +211,7 @@ export function EditableHeader(props: {
           </div>
         </div>
         <button
-          className="mt-1 text-xs font-medium text-brand hover:underline"
+          className="mt-1 text-xs font-semibold text-muted-2 transition-colors hover:text-brand"
           onClick={begin}
         >
           Edit
@@ -233,16 +237,16 @@ export function EditableHeader(props: {
         </GridField>
       </div>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-      <div className="mt-2 flex justify-end gap-2">
+      <div className="mt-2 flex justify-end gap-3">
         <button
-          className="text-xs text-gray-500 hover:underline"
+          className="text-xs font-medium text-muted transition-colors hover:text-foreground"
           onClick={() => setEditing(false)}
           disabled={saving}
         >
           Cancel
         </button>
         <button
-          className="text-xs font-medium text-brand hover:underline"
+          className="text-xs font-semibold text-accent-ink transition-colors hover:text-brand-dark"
           onClick={onSave}
           disabled={saving}
         >
@@ -363,21 +367,21 @@ export function EditableSourceDates(props: {
           {DATE_FIELDS.map((f) => (
             <Row key={f.key} label={f.label} value={formatDate(props.dates[f.key])} />
           ))}
-          <div className="mt-2 border-t border-gray-100 pt-2">
+          <div className="mt-3 border-t border-line pt-2">
             <p className="label">Site visits</p>
             {props.siteVisits.length === 0 ? (
-              <p className="text-sm text-gray-400">None recorded.</p>
+              <p className="text-sm text-muted-2">None recorded.</p>
             ) : (
-              <ul className="space-y-0.5 text-sm text-gray-700">
+              <ul className="space-y-0.5 text-sm text-muted">
                 {props.siteVisits.map((v, i) => (
                   <li key={i} className="flex justify-between gap-3">
-                    <span className="font-medium">
-                      {formatDate(v.date)}
+                    <span className="font-medium text-foreground">
+                      <span className="mono">{formatDate(v.date)}</span>
                       {v.siteId && siteNameById.has(v.siteId)
                         ? ` — ${siteNameById.get(v.siteId)}`
                         : ""}
                     </span>
-                    {v.note && <span className="text-right text-gray-500">{v.note}</span>}
+                    {v.note && <span className="text-right text-muted">{v.note}</span>}
                   </li>
                 ))}
               </ul>
@@ -424,7 +428,7 @@ export function EditableSourceDates(props: {
                 ))}
               </datalist>
               {resolved && (
-                <span className="mt-1 block text-xs text-gray-400">→ {resolved}</span>
+                <span className="mt-1 block text-xs text-muted-2">→ {resolved}</span>
               )}
             </GridField>
             {DATE_FIELDS.map((f) => (
@@ -436,10 +440,10 @@ export function EditableSourceDates(props: {
               </GridField>
             ))}
           </div>
-          <div className="border-t border-gray-100 pt-2">
+          <div className="border-t border-line pt-2">
             <span className="label">Site visits</span>
             {props.submittedSites.length === 0 && (
-              <p className="mb-1 text-xs text-gray-400">
+              <p className="mb-1 text-xs text-muted-2">
                 Submit sites below to link a visit to a specific site.
               </p>
             )}
@@ -484,7 +488,7 @@ export function EditableSourceDates(props: {
                   }
                 />
                 <button
-                  className="text-xs text-red-500 hover:underline"
+                  className="text-xs font-medium text-danger transition-colors hover:text-red-700"
                   onClick={() => setVisits((cur) => cur.filter((_, j) => j !== i))}
                 >
                   Remove
@@ -492,7 +496,7 @@ export function EditableSourceDates(props: {
               </div>
             ))}
             <button
-              className="text-xs text-brand hover:underline"
+              className="text-xs font-medium text-accent-ink transition-colors hover:text-brand-dark"
               onClick={() =>
                 setVisits((cur) => [...cur, { date: "", note: "", siteId: null }])
               }
@@ -577,7 +581,7 @@ export function EditableInvestmentJobs(props: {
           />
           <Row label="Avg wage" value={formatCurrency(props.avgWage)} />
           {props.financingNotes && (
-            <p className="mt-2 text-xs text-gray-500">{props.financingNotes}</p>
+            <p className="mt-2 text-xs text-muted">{props.financingNotes}</p>
           )}
         </>
       ) : (
@@ -723,18 +727,18 @@ export function EditableSiteRequirements(props: {
             }
           />
           {props.buildingSizeNeeds && (
-            <p className="mt-2 text-xs text-gray-600">{props.buildingSizeNeeds}</p>
+            <p className="mt-2 text-xs text-muted">{props.buildingSizeNeeds}</p>
           )}
-          <div className="mt-2 border-t border-gray-100 pt-2">
+          <div className="mt-3 border-t border-line pt-2">
             <p className="label">Required deliverables</p>
             {props.requiredDeliverables.length ? (
-              <ul className="list-disc pl-5 text-sm text-gray-700">
+              <ul className="list-disc pl-5 text-sm text-muted">
                 {props.requiredDeliverables.map((dlv, i) => (
                   <li key={i}>{dlv}</li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-gray-400">—</p>
+              <p className="text-sm text-muted-2">—</p>
             )}
           </div>
         </>
@@ -817,9 +821,9 @@ export function EditableCriticalCriteria(props: {
     >
       {!editing ? (
         props.criticalCriteria.length === 0 ? (
-          <p className="text-sm text-gray-400">None recorded.</p>
+          <p className="text-sm text-muted-2">None recorded.</p>
         ) : (
-          <ol className="list-decimal space-y-1 pl-5 text-sm text-gray-800">
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-foreground">
             {props.criticalCriteria.map((c, i) => (
               <li key={i}>{c.text}</li>
             ))}
@@ -829,7 +833,7 @@ export function EditableCriticalCriteria(props: {
         <div className="space-y-2">
           {items.map((c, i) => (
             <div key={i} className="flex items-start gap-2">
-              <span className="mt-2 text-xs text-gray-400">{i + 1}.</span>
+              <span className="mono mt-2 text-xs text-muted-2">{i + 1}.</span>
               <input
                 className="input"
                 value={c.text}
@@ -842,7 +846,7 @@ export function EditableCriticalCriteria(props: {
                 }
               />
               <button
-                className="mt-2 text-xs text-red-500 hover:underline"
+                className="mt-2 text-xs font-medium text-danger transition-colors hover:text-red-700"
                 onClick={() => setItems((cur) => cur.filter((_, j) => j !== i))}
               >
                 Remove
@@ -850,7 +854,7 @@ export function EditableCriticalCriteria(props: {
             </div>
           ))}
           <button
-            className="text-xs text-brand hover:underline"
+            className="text-xs font-medium text-accent-ink transition-colors hover:text-brand-dark"
             onClick={() =>
               setItems((cur) => [...cur, { rank: cur.length + 1, text: "" }])
             }
@@ -901,19 +905,19 @@ export function EditableQualitative(props: {
     >
       {!editing ? (
         props.qualitativeNotes.length === 0 ? (
-          <p className="text-sm text-gray-400">None recorded.</p>
+          <p className="text-sm text-muted-2">None recorded.</p>
         ) : (
           props.qualitativeNotes.map((q, i) => (
             <div key={i} className="mb-2">
-              <p className="text-xs font-semibold text-gray-700">{q.label}</p>
-              <p className="text-sm text-gray-600">{q.content}</p>
+              <p className="label">{q.label}</p>
+              <p className="text-sm text-muted">{q.content}</p>
             </div>
           ))
         )
       ) : (
         <div className="space-y-2">
           {items.map((n, i) => (
-            <div key={i} className="space-y-1 rounded-md border border-gray-200 p-2">
+            <div key={i} className="space-y-1 rounded-lg border border-line p-2">
               <input
                 className="input"
                 placeholder="Label"
@@ -940,7 +944,7 @@ export function EditableQualitative(props: {
                 }
               />
               <button
-                className="text-xs text-red-500 hover:underline"
+                className="text-xs font-medium text-danger transition-colors hover:text-red-700"
                 onClick={() => setItems((cur) => cur.filter((_, j) => j !== i))}
               >
                 Remove
@@ -948,7 +952,7 @@ export function EditableQualitative(props: {
             </div>
           ))}
           <button
-            className="text-xs text-brand hover:underline"
+            className="text-xs font-medium text-accent-ink transition-colors hover:text-brand-dark"
             onClick={() =>
               setItems((cur) => [...cur, { label: "", content: "" }])
             }
@@ -1017,15 +1021,15 @@ export function EditableUtilities(props: {
     >
       {!editing ? (
         !anySet ? (
-          <p className="text-sm text-gray-400">None recorded.</p>
+          <p className="text-sm text-muted-2">None recorded.</p>
         ) : (
           <div className="space-y-2">
             {rows
               .filter((r) => r.value && r.value.trim())
               .map((r) => (
                 <div key={r.label}>
-                  <p className="text-xs font-semibold text-gray-700">{r.label}</p>
-                  <p className="whitespace-pre-wrap text-sm text-gray-600">
+                  <p className="label">{r.label}</p>
+                  <p className="whitespace-pre-wrap text-sm text-muted">
                     {r.value}
                   </p>
                 </div>
@@ -1075,22 +1079,22 @@ export function EditableNoSubmissionReason(props: {
   }
 
   return (
-    <div className="card border-slate-200 bg-slate-50 p-4">
+    <div className="card border-amber-200 bg-amber-50 p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-800">
+        <h3 className="text-sm font-semibold text-amber-900">
           Reason for not submitting
         </h3>
         {editing ? (
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <button
-              className="text-xs text-gray-500 hover:underline"
+              className="text-xs font-medium text-muted transition-colors hover:text-foreground"
               onClick={() => setEditing(false)}
               disabled={saving}
             >
               Cancel
             </button>
             <button
-              className="text-xs font-medium text-brand hover:underline"
+              className="text-xs font-semibold text-accent-ink transition-colors hover:text-brand-dark"
               onClick={onSave}
               disabled={saving}
             >
@@ -1099,7 +1103,7 @@ export function EditableNoSubmissionReason(props: {
           </div>
         ) : (
           <button
-            className="text-xs font-medium text-brand hover:underline"
+            className="text-xs font-semibold text-muted-2 transition-colors hover:text-brand"
             onClick={begin}
           >
             Edit
@@ -1109,9 +1113,9 @@ export function EditableNoSubmissionReason(props: {
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       <div className="mt-2">
         {!editing ? (
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-amber-900">
             {props.noSubmissionReason || (
-              <span className="text-gray-400">No reason recorded.</span>
+              <span className="text-muted-2">No reason recorded.</span>
             )}
           </p>
         ) : (
@@ -1164,27 +1168,27 @@ export function EditableNotes(props: {
       {!editing ? (
         <div className="space-y-2">
           {props.environmentalNotes && (
-            <p className="text-sm text-gray-600">
-              <span className="font-medium">Environmental:</span>{" "}
+            <p className="text-sm text-muted">
+              <span className="font-medium text-foreground">Environmental:</span>{" "}
               {props.environmentalNotes}
             </p>
           )}
           {props.transportationNotes && (
-            <p className="text-sm text-gray-600">
-              <span className="font-medium">Transportation:</span>{" "}
+            <p className="text-sm text-muted">
+              <span className="font-medium text-foreground">Transportation:</span>{" "}
               {props.transportationNotes}
             </p>
           )}
           {props.specialServicesNotes && (
-            <p className="text-sm text-gray-600">
-              <span className="font-medium">Special services:</span>{" "}
+            <p className="text-sm text-muted">
+              <span className="font-medium text-foreground">Special services:</span>{" "}
               {props.specialServicesNotes}
             </p>
           )}
           {!props.environmentalNotes &&
             !props.transportationNotes &&
             !props.specialServicesNotes && (
-              <p className="text-sm text-gray-400">None recorded.</p>
+              <p className="text-sm text-muted-2">None recorded.</p>
             )}
         </div>
       ) : (

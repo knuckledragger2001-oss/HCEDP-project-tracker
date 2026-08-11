@@ -112,18 +112,22 @@ export default async function PartnerRequestsPage() {
                       <span className="font-medium text-foreground/70">
                         Needed by:
                       </span>{" "}
-                      {formatDate(r.neededByDate.toISOString())}
+                      <span className="mono">
+                        {formatDate(r.neededByDate.toISOString())}
+                      </span>
                     </span>
                   )}
                   <span>
                     <span className="font-medium text-foreground/70">
                       Submitted:
                     </span>{" "}
-                    {formatDate(r.createdAt.toISOString())}
+                    <span className="mono">
+                      {formatDate(r.createdAt.toISOString())}
+                    </span>
                   </span>
                 </div>
                 {r.status === "COMPLETED" && r.resultNote && (
-                  <div className="mt-3 rounded-lg bg-green-50 p-3 text-sm text-green-900">
+                  <div className="mt-3 rounded-lg border border-line bg-green-tint p-3 text-sm text-accent-ink">
                     <span className="font-semibold">Result: </span>
                     {r.resultNote}
                   </div>

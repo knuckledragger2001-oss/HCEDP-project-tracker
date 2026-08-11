@@ -62,10 +62,10 @@ const WARN_CATEGORY_META: Record<
   WarnCategory,
   { label: string; dot: string; border: string; bg: string; text: string; badge: string }
 > = {
-  missing:    { label: "Missing",          dot: "bg-red-500",   border: "border-red-200",   bg: "bg-red-50",   text: "text-red-800",   badge: "bg-red-100 text-red-700" },
-  verify:     { label: "Verify",           dot: "bg-amber-500", border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-800", badge: "bg-amber-100 text-amber-700" },
-  conversion: { label: "Value Conversion", dot: "bg-blue-500",  border: "border-blue-200",  bg: "bg-blue-50",  text: "text-blue-800",  badge: "bg-blue-100 text-blue-700" },
-  fyi:        { label: "FYI",              dot: "bg-gray-400",  border: "border-gray-200",  bg: "bg-gray-50",  text: "text-gray-700",  badge: "bg-gray-100 text-gray-600" },
+  missing:    { label: "Missing",          dot: "bg-danger", border: "border-danger/30", bg: "bg-danger/10", text: "text-danger", badge: "bg-danger/15 text-danger" },
+  verify:     { label: "Verify",           dot: "bg-warn",   border: "border-warn/30",   bg: "bg-warn/10",   text: "text-warn",   badge: "bg-warn/15 text-warn" },
+  conversion: { label: "Value Conversion", dot: "bg-info",   border: "border-info/30",   bg: "bg-info/10",   text: "text-info",   badge: "bg-info/15 text-info" },
+  fyi:        { label: "FYI",              dot: "bg-muted-2", border: "border-line",     bg: "bg-surface-2", text: "text-muted",  badge: "bg-surface-2 text-muted" },
 };
 
 function classifyWarning(kind: string | undefined): WarnCategory {
@@ -163,9 +163,9 @@ function WarningBuckets({ warnings }: { warnings: ParsedProject["parseWarnings"]
   ).filter((b) => b.items.length > 0);
 
   return (
-    <div className="rounded-md border border-gray-200 bg-white p-3">
+    <div className="card p-3">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="text-sm font-semibold text-gray-700">
+        <span className="text-sm font-semibold text-foreground">
           {warnings.length} parser note{warnings.length === 1 ? "" : "s"}
         </span>
         {buckets.map(({ cat, items }) => {
@@ -264,10 +264,10 @@ export default function ReviewForm({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">
+          <h1 className="text-2xl font-semibold text-foreground">
             Review parsed RFI
           </h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted">
             {parserAvailable
               ? `Parsed with ${parsedModel}. Review and edit, then save — nothing is stored until you click Save.`
               : "Parser unavailable — fill the fields manually, then save."}
@@ -286,7 +286,7 @@ export default function ReviewForm({
       </div>
 
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-lg border border-danger/30 bg-danger/15 p-3 text-sm text-danger">
           {error}
         </div>
       )}
@@ -348,7 +348,7 @@ export default function ReviewForm({
               ))}
             </datalist>
             {p.companyLocationRaw?.trim() && (
-              <span className="mt-1 block text-xs text-gray-400">
+              <span className="mt-1 block text-xs text-muted-2">
                 → {describeLocation(normalizeLocation(p.companyLocationRaw))}
               </span>
             )}
@@ -510,7 +510,7 @@ export default function ReviewForm({
       >
         {(p.criticalCriteria ?? []).map((c, i) => (
           <div key={i} className="flex items-center gap-2">
-            <span className="w-6 text-sm font-semibold text-gray-400">{i + 1}.</span>
+            <span className="mono w-6 text-sm font-semibold text-muted-2">{i + 1}.</span>
             <input
               className="input flex-1"
               value={c.text}
@@ -597,7 +597,7 @@ export default function ReviewForm({
           description="Soft needs that don't fit a structured field (e.g. supportive educational ecosystem)."
         >
           {(p.qualitativeNotes ?? []).map((q, i) => (
-            <div key={i} className="space-y-1 rounded-md border border-gray-200 p-2">
+            <div key={i} className="space-y-1 rounded-lg border border-line p-2">
               <input
                 className="input"
                 placeholder="label"
@@ -652,11 +652,11 @@ export default function ReviewForm({
 
       {attachments.length > 0 && (
         <Section title="Attachments" description="Stored with the project on save.">
-          <ul className="list-disc pl-5 text-sm text-gray-600">
+          <ul className="list-disc pl-5 text-sm text-muted">
             {attachments.map((a) => (
               <li key={a.storageKey}>
                 {a.fileName}{" "}
-                <span className="text-gray-400">
+                <span className="mono text-muted-2">
                   ({Math.round(a.sizeBytes / 1024)} KB)
                 </span>
               </li>

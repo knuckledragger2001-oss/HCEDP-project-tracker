@@ -677,9 +677,9 @@ export default function SitesManager({
             Merge duplicates
           </button>
         ) : (
-          <div className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5">
+          <div className="flex items-center gap-2 rounded-lg border border-brand/40 bg-green-tint px-3 py-1.5">
             <span className="text-xs text-foreground">
-              {selected.size} selected — tick two or more duplicate sites
+              <span className="mono">{selected.size}</span> selected — tick two or more duplicate sites
             </span>
             <button
               className="btn-primary text-xs"
@@ -795,16 +795,16 @@ export default function SitesManager({
                                 s.realEstateType
                               : "—"}
                           </td>
-                          <td className="py-1 pr-3 text-muted">
+                          <td className="mono py-1 pr-3 text-muted">
                             {s.acreage ? `${formatNumber(s.acreage)} ac` : "—"}
                           </td>
-                          <td className="py-1 pr-3 text-muted">
+                          <td className="mono py-1 pr-3 text-muted">
                             {s.squareFeet ? `${formatNumber(s.squareFeet)} sf` : "—"}
                           </td>
-                          <td className="py-1 pr-3 text-muted">
+                          <td className="mono py-1 pr-3 text-muted">
                             {s.pricePerSqFt != null ? `$${formatNumber(s.pricePerSqFt)}` : "—"}
                           </td>
-                          <td className="py-1 pr-3 text-muted">
+                          <td className="mono py-1 pr-3 text-muted">
                             {s.currentElectricMw != null || s.projectedElectricMw != null
                               ? `${s.currentElectricMw ?? "—"} / ${s.projectedElectricMw ?? "—"}`
                               : "—"}
@@ -821,7 +821,7 @@ export default function SitesManager({
                           <td className="py-1 pr-3 text-muted">
                             {s.gasProviderName ?? "—"}
                           </td>
-                          <td className="py-1 pr-3 text-right text-muted">
+                          <td className="mono py-1 pr-3 text-right text-muted">
                             {s.submissionCount}
                           </td>
                           <td className="py-1 text-right whitespace-nowrap">
@@ -981,7 +981,7 @@ export default function SitesManager({
                       />
                       <span className="text-sm text-foreground">{s.name}</span>
                       <span className="ml-auto text-xs text-muted">
-                        {s.submissionCount} sub{s.submissionCount === 1 ? "" : "s"}
+                        <span className="mono">{s.submissionCount}</span> sub{s.submissionCount === 1 ? "" : "s"}
                       </span>
                     </label>
                   ))}

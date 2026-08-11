@@ -34,15 +34,15 @@ export type UserRowData = {
 export default function UsersTable({ users }: { users: UserRowData[] }) {
   return (
     <div className="card overflow-x-auto p-0">
-      <table className="w-full text-sm">
+      <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b border-line text-left text-xs text-muted">
-            <th className="px-4 py-2">User</th>
-            <th className="px-4 py-2">Role</th>
-            <th className="px-4 py-2">Status</th>
-            <th className="px-4 py-2">Last login</th>
-            <th className="px-4 py-2">Reset password</th>
-            <th className="px-4 py-2 text-right">Actions</th>
+          <tr className="text-left text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-muted">
+            <th scope="col" className="border-b border-line bg-green-tint px-4 py-2.5">User</th>
+            <th scope="col" className="border-b border-line bg-green-tint px-4 py-2.5">Role</th>
+            <th scope="col" className="border-b border-line bg-green-tint px-4 py-2.5">Status</th>
+            <th scope="col" className="border-b border-line bg-green-tint px-4 py-2.5">Last login</th>
+            <th scope="col" className="border-b border-line bg-green-tint px-4 py-2.5">Reset password</th>
+            <th scope="col" className="border-b border-line bg-green-tint px-4 py-2.5 text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -156,7 +156,7 @@ function UserRow({ user: u }: { user: UserRowData }) {
   }
 
   return (
-    <tr className="border-b border-line/60 align-top">
+    <tr className="border-b border-line align-top transition-colors last:border-0 hover:bg-surface-2">
       <td className="px-4 py-3">
         <div className="font-medium text-foreground">
           {u.name ?? "—"}
@@ -196,12 +196,12 @@ function UserRow({ user: u }: { user: UserRowData }) {
       </td>
       <td className="px-4 py-3">
         {u.disabled ? (
-          <span className="badge bg-red-100 text-red-700">Disabled</span>
+          <span className="badge bg-danger/15 text-danger">Disabled</span>
         ) : (
-          <span className="badge bg-green-100 text-green-700">Active</span>
+          <span className="badge bg-success/15 text-success">Active</span>
         )}
       </td>
-      <td className="px-4 py-3 text-muted">{u.lastLoginLabel}</td>
+      <td className="mono px-4 py-3 text-muted">{u.lastLoginLabel}</td>
       <td className="px-4 py-3">
         {u.isSelf ? (
           <span className="text-xs text-muted/60">—</span>

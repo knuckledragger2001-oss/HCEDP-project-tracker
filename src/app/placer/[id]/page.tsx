@@ -106,15 +106,19 @@ export default async function PlacerRequestDetailPage({
             )}
           </Field>
           <Field label="Needed by">
-            {request.neededByDate
-              ? formatDate(request.neededByDate.toISOString())
-              : "—"}
+            {request.neededByDate ? (
+              <span className="mono">
+                {formatDate(request.neededByDate.toISOString())}
+              </span>
+            ) : (
+              "—"
+            )}
           </Field>
           <Field label="Submitted by">
             {request.submittedBy?.name ?? request.submittedBy?.email ?? "—"}
           </Field>
           <Field label="Submitted">
-            {formatTimestamp(request.createdAt)}
+            <span className="mono">{formatTimestamp(request.createdAt)}</span>
           </Field>
         </div>
         {request.purpose && (

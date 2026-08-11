@@ -12,21 +12,14 @@ const PROGRESS = PIPELINE_STAGES.filter((s) => !TERMINAL.includes(s.value));
 const LOST = PIPELINE_STAGES.find((s) => s.value === "LOST")!;
 const NO_SUBMISSION = PIPELINE_STAGES.find((s) => s.value === "NO_SUBMISSION")!;
 
-// Gradient endpoints: a light green that deepens to saturated brand green.
-const FROM: [number, number, number] = [191, 224, 205]; // #BFE0CD
-const TO: [number, number, number] = [23, 76, 52]; // #174C34
-
-function gradientColor(index: number, count: number): string {
-  const t = count <= 1 ? 1 : index / (count - 1);
-  const c = FROM.map((f, i) => Math.round(f + (TO[i] - f) * t));
-  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
-}
-
-// Darker greens need white text; lighter ones read better with dark text.
-function textColor(index: number, count: number): string {
-  const t = count <= 1 ? 1 : index / (count - 1);
-  return t > 0.45 ? "#ffffff" : "#15392a";
-}
+// Stage-rail palette: completed and current segments fill solid brand green;
+// upcoming segments sit in neutral grey. The current segment also carries a
+// soft green halo (via drop-shadow, which — unlike box-shadow — respects the
+// breadcrumb clip-path) so it reads as "you are here".
+const BRAND = "#174c34"; // reached fill
+const REACHED_FG = "#ffffff"; // text on brand green
+const UPCOMING_BG = "#eef0f2"; // neutral grey fill
+const UPCOMING_FG = "#98a29b"; // muted-2 text
 
 // Breadcrumb-style right-pointing arrow; first segment has no left notch.
 function clipFor(first: boolean): string {
@@ -139,8 +132,8 @@ export default function StageProgress({
           const offTrack = isLost || isNoSubmission;
           const reached = !offTrack && i <= currentIndex;
           const isCurrent = !offTrack && i === currentIndex;
-          const bg = reached ? gradientColor(i, PROGRESS.length) : "#eef0f2";
-          const fg = reached ? textColor(i, PROGRESS.length) : "#9aa1a9";
+          const bg = reached ? BRAND : UPCOMING_BG;
+          const fg = reached ? REACHED_FG : UPCOMING_FG;
           return (
             <button
               key={s.value}
@@ -149,14 +142,16 @@ export default function StageProgress({
               onClick={() => change(s.value)}
               title={s.label}
               className={`relative -ml-2 first:ml-0 px-3 py-1.5 text-xs font-semibold transition-transform disabled:cursor-wait ${
-                isCurrent ? "scale-[1.03]" : "hover:brightness-110"
+                isCurrent ? "scale-[1.04]" : "hover:brightness-110"
               }`}
               style={{
                 backgroundColor: bg,
                 color: fg,
                 clipPath: clipFor(i === 0),
-                boxShadow: isCurrent ? "inset 0 0 0 2px rgba(0,0,0,0.18)" : "none",
-                zIndex: PROGRESS.length - i,
+                filter: isCurrent
+                  ? "drop-shadow(0 0 5px rgba(23,76,52,0.45))"
+                  : "none",
+                zIndex: isCurrent ? PROGRESS.length + 1 : PROGRESS.length - i,
               }}
             >
               <span className="pl-1">{s.label}</span>
@@ -170,11 +165,11 @@ export default function StageProgress({
         disabled={saving}
         onClick={() => change(LOST.value as PipelineStageValue)}
         title="Mark as lost"
-        className="ml-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-wait"
+        className="ml-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-wait"
         style={{
-          backgroundColor: isLost ? "#b91c1c" : "#f3f4f6",
-          color: isLost ? "#ffffff" : "#9aa1a9",
-          boxShadow: isLost ? "inset 0 0 0 2px rgba(0,0,0,0.18)" : "none",
+          backgroundColor: isLost ? "#b0402f" : UPCOMING_BG,
+          color: isLost ? "#ffffff" : UPCOMING_FG,
+          filter: isLost ? "drop-shadow(0 0 5px rgba(176,64,47,0.4))" : "none",
         }}
       >
         {LOST.label}
@@ -185,11 +180,11 @@ export default function StageProgress({
         disabled={saving}
         onClick={() => change(NO_SUBMISSION.value as PipelineStageValue)}
         title="We chose not to submit"
-        className="ml-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-wait"
+        className="ml-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-wait"
         style={{
-          backgroundColor: isNoSubmission ? "#475569" : "#f3f4f6",
-          color: isNoSubmission ? "#ffffff" : "#9aa1a9",
-          boxShadow: isNoSubmission ? "inset 0 0 0 2px rgba(0,0,0,0.18)" : "none",
+          backgroundColor: isNoSubmission ? "#475569" : UPCOMING_BG,
+          color: isNoSubmission ? "#ffffff" : UPCOMING_FG,
+          filter: isNoSubmission ? "drop-shadow(0 0 5px rgba(71,85,105,0.4))" : "none",
         }}
       >
         {NO_SUBMISSION.label}
@@ -198,7 +193,7 @@ export default function StageProgress({
 
     {/* Won-site picker: which submitted site was chosen. */}
     {wonPickerOpen && (
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-brand/30 bg-brand/5 p-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-brand/30 bg-green-tint p-2">
         <span className="text-xs font-semibold text-brand">Chosen site:</span>
         <select
           className="input h-8 w-56 py-1 text-sm"
@@ -223,7 +218,7 @@ export default function StageProgress({
         </button>
         <button
           type="button"
-          className="text-xs text-gray-500 hover:underline"
+          className="text-xs text-muted hover:text-foreground"
           onClick={() => setWonPickerOpen(false)}
           disabled={saving}
         >
@@ -234,12 +229,12 @@ export default function StageProgress({
 
     {/* When already Won, show the chosen site with a shortcut to change it. */}
     {!wonPickerOpen && stage === "WON" && (
-      <div className="text-xs text-gray-500">
-        Chosen site: <span className="font-medium text-gray-700">{wonSiteName ?? "— none —"}</span>
+      <div className="text-xs text-muted">
+        Chosen site: <span className="font-medium text-foreground">{wonSiteName ?? "— none —"}</span>
         {submittedSites.length > 0 && (
           <button
             type="button"
-            className="ml-2 text-brand hover:underline"
+            className="ml-2 text-accent-ink hover:text-brand-dark"
             onClick={() => change("WON")}
             disabled={saving}
           >

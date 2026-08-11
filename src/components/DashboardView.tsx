@@ -456,6 +456,62 @@ export default function DashboardView({
             )}
           </Panel>
 
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Panel
+              title="Existing-space demand"
+              description="Projects seeking an existing building, by minimum square footage."
+            >
+              {report.existingSpaceBySqFt.every((b) => b.count === 0) ? (
+                <Empty>No projects seeking existing space in this period.</Empty>
+              ) : (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={report.existingSpaceBySqFt}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: TICK }} tickLine={false} axisLine={{ stroke: GRID }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: TICK }} tickLine={false} axisLine={{ stroke: GRID }} />
+                    <Tooltip
+                      cursor={{ fill: "rgba(23,76,52,0.06)" }}
+                      formatter={(value) => [String(value), "Projects"]}
+                      labelFormatter={(l) => `${l} sq ft`}
+                    />
+                    <Bar dataKey="count" fill={BRAND} radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </Panel>
+
+            <Panel
+              title="Greenfield demand"
+              description="Projects seeking greenfield land, by minimum acreage."
+            >
+              {report.greenfieldByAcreage.every((b) => b.count === 0) ? (
+                <Empty>No projects seeking greenfield land in this period.</Empty>
+              ) : (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={report.greenfieldByAcreage}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: TICK }} tickLine={false} axisLine={{ stroke: GRID }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: TICK }} tickLine={false} axisLine={{ stroke: GRID }} />
+                    <Tooltip
+                      cursor={{ fill: "rgba(23,76,52,0.06)" }}
+                      formatter={(value) => [String(value), "Projects"]}
+                      labelFormatter={(l) => `${l} ac`}
+                    />
+                    <Bar dataKey="count" fill={BRAND} radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </Panel>
+          </div>
+          {report.demandNoPreference > 0 && (
+            <p className="-mt-1 text-[11px] text-muted-2">
+              {formatNumber(report.demandNoPreference)} project
+              {report.demandNoPreference === 1 ? "" : "s"} without an
+              existing-building preference {report.demandNoPreference === 1 ? "is" : "are"}{" "}
+              not shown in the demand charts.
+            </p>
+          )}
+
           <Panel
             title="Stage progression"
             description="How far each project got. A project that moved backwards and then advanced again is drawn as one clean run along its furthest path."

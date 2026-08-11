@@ -114,6 +114,15 @@ export interface DashboardReport {
   byLeadSource: BreakdownRow[];
   /** One entry per pipeline stage, in board order, for the status bar chart. */
   byStatus: BreakdownRow[];
+  /** "Demand for space" histograms. A project is placed by its existing-building
+   *  preference: Yes/Preferred -> existing space (by min building sq ft); No ->
+   *  greenfield (by min acreage). Mutually exclusive; a project with no preference
+   *  set (see demandNoPreference) or no size on file is not placed. */
+  existingSpaceBySqFt: BreakdownRow[];
+  greenfieldByAcreage: BreakdownRow[];
+  /** Projects excluded from both demand charts because no existing-building
+   *  preference is recorded. Surfaced as a caption so the counts read honestly. */
+  demandNoPreference: number;
   summary: DashboardSummary;
 }
 
@@ -276,6 +285,39 @@ function buildSankey(
   return { nodes, links, projectsWithBackwardMoves };
 }
 
+// "Demand for space" bands. A project is placed by its existing-building
+// preference: Yes/Preferred -> existing space (bucketed by min building sq ft);
+// No -> greenfield (bucketed by min acreage). The two are mutually exclusive.
+// Each band's upper bound is exclusive; the last band is open-ended.
+const SQFT_BANDS: { key: string; label: string; max: number }[] = [
+  { key: "lt50k", label: "< 50k", max: 50_000 },
+  { key: "50to100k", label: "50k–100k", max: 100_000 },
+  { key: "100to250k", label: "100k–250k", max: 250_000 },
+  { key: "250to500k", label: "250k–500k", max: 500_000 },
+  { key: "gte500k", label: "500k+", max: Infinity },
+];
+const ACRE_BANDS: { key: string; label: string; max: number }[] = [
+  { key: "lt25", label: "< 25", max: 25 },
+  { key: "25to100", label: "25–99", max: 100 },
+  { key: "100to250", label: "100–249", max: 250 },
+  { key: "250to500", label: "250–499", max: 500 },
+  { key: "gte500", label: "500+", max: Infinity },
+];
+
+function bandCounts(
+  values: number[],
+  bands: { key: string; label: string; max: number }[],
+): BreakdownRow[] {
+  return bands.map((b, i) => {
+    const lower = i === 0 ? -Infinity : bands[i - 1].max;
+    return {
+      key: b.key,
+      label: b.label,
+      count: values.filter((v) => v >= lower && v < b.max).length,
+    };
+  });
+}
+
 function topBreakdown(
   rows: { key: string | null; label: string }[],
   limit: number,
@@ -309,6 +351,8 @@ export async function dashboardReport(f: ReportFilters): Promise<DashboardReport
       avgWage: true,
       jobs: true,
       minAcreage: true,
+      minBuildingSqFt: true,
+      existingBuildingPreference: true,
       rfiReceivedDate: true,
       _count: { select: { siteVisits: true, submissions: true } },
     },
@@ -404,6 +448,25 @@ export async function dashboardReport(f: ReportFilters): Promise<DashboardReport
     count: statusCount.get(s.value) ?? 0,
   }));
 
+  // "Demand for space" — split projects by their existing-building preference
+  // (Yes/Preferred want an existing building; No wants greenfield land), then
+  // bucket each side by the relevant size. A project counts in exactly one chart.
+  const existingSqFt: number[] = [];
+  const greenfieldAcres: number[] = [];
+  let demandNoPreference = 0;
+  for (const p of projects) {
+    const pref = p.existingBuildingPreference;
+    if (pref === "YES" || pref === "PREFERRED") {
+      if (p.minBuildingSqFt != null) existingSqFt.push(p.minBuildingSqFt);
+    } else if (pref === "NO") {
+      if (p.minAcreage != null) greenfieldAcres.push(p.minAcreage);
+    } else {
+      demandNoPreference++;
+    }
+  }
+  const existingSpaceBySqFt = bandCounts(existingSqFt, SQFT_BANDS);
+  const greenfieldByAcreage = bandCounts(greenfieldAcres, ACRE_BANDS);
+
   const projectJobs = projects.map((p) => p.jobs ?? 0);
   const jobsTotal = projectJobs.reduce((a, b) => a + b, 0);
   const projectsReportingJobs = projectJobs.filter((n) => n > 0).length;
@@ -443,6 +506,9 @@ export async function dashboardReport(f: ReportFilters): Promise<DashboardReport
     byIndustry,
     byLeadSource,
     byStatus,
+    existingSpaceBySqFt,
+    greenfieldByAcreage,
+    demandNoPreference,
     summary,
   };
 }

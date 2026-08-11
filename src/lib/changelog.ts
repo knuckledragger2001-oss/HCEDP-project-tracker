@@ -34,6 +34,18 @@ export interface ChangelogEntry {
 // Newest entry first. Add new releases at the top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "2026.08.11-2",
+    date: "2026-08-11",
+    title: "Demand-for-space charts on the dashboard",
+    items: [
+      {
+        tag: "new",
+        text:
+          "The dashboard has two new charts showing what kind of space our prospects are after. \"Existing-space demand\" groups projects that want an existing building by square footage; \"Greenfield demand\" groups projects that want land by acreage. A project lands in one chart or the other based on its existing-building preference, and both respond to the filters at the top of the page. Projects with no existing-building preference recorded are noted below the charts.",
+      },
+    ],
+  },
+  {
     version: "2026.08.11",
     date: "2026-08-11",
     title: "A refreshed look across the app",

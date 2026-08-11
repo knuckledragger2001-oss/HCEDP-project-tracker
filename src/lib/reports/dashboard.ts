@@ -1,9 +1,32 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { leadSourceLabel } from "@/lib/format";
-import { NAICS_BY_CODE } from "@/lib/naics";
+import { toNaicsSector, naicsSectorLabel } from "@/lib/naics";
 import { PIPELINE_STAGES, type PipelineStageValue } from "@/lib/projects/schema";
 import { describeFilters, type ReportFilters, type ReportFilterLabels } from "./data";
+
+// Stages that mean a project reached (or passed) the shortlist / site-visit
+// milestones, for the shortlist-rate and site-visit-rate metrics. A project's
+// *current* stage is used together with its stage history (see reachedSets).
+const SHORTLIST_OR_BEYOND: PipelineStageValue[] = [
+  "SHORTLISTED",
+  "SITE_VISIT",
+  "IN_NEGOTIATIONS",
+  "WON",
+];
+const SITE_VISIT_OR_BEYOND: PipelineStageValue[] = [
+  "SITE_VISIT",
+  "IN_NEGOTIATIONS",
+  "WON",
+];
+
+// Collapse the six DIRECT_* lead sources (and the legacy plain DIRECT) into a
+// single "Direct" bucket for the dashboard charts — these are all our own
+// lead-generation efforts and read better grouped.
+function leadSourceGroup(source: string): { key: string; label: string } {
+  if (source.startsWith("DIRECT")) return { key: "DIRECT", label: "Direct" };
+  return { key: source, label: leadSourceLabel(source) };
+}
 
 // Stages a project can only be in once we actually submitted a response. A
 // project sitting in RFI Received or Pending Information has not been submitted;
@@ -29,8 +52,14 @@ export interface DashboardRates {
   winRateOfSubmitted: number | null;
   /** Projects won ÷ every RFI received. Passing on an RFI counts against this. */
   winRateOfReceived: number | null;
+  /** Reached shortlist ÷ projects we submitted a response for. */
+  shortlistRate: number | null;
+  /** Reached a site visit ÷ projects we submitted a response for. */
+  siteVisitRate: number | null;
   received: number;
   submitted: number;
+  shortlisted: number;
+  siteVisited: number;
   won: number;
   lost: number;
   noSubmission: number;
@@ -83,6 +112,8 @@ export interface DashboardReport {
   sankey: SankeyPayload;
   byIndustry: BreakdownRow[];
   byLeadSource: BreakdownRow[];
+  /** One entry per pipeline stage, in board order, for the status bar chart. */
+  byStatus: BreakdownRow[];
   summary: DashboardSummary;
 }
 
@@ -271,16 +302,39 @@ export async function dashboardReport(f: ReportFilters): Promise<DashboardReport
       id: true,
       stage: true,
       naicsCode: true,
+      naicsSector: true,
       industryDescription: true,
       leadSource: true,
       capexTotal: true,
       avgWage: true,
+      jobs: true,
       minAcreage: true,
       rfiReceivedDate: true,
-      jobPhases: { select: { count: true } },
       _count: { select: { siteVisits: true, submissions: true } },
     },
   });
+
+  // Ordered ascending: buildSankey walks each project's history in time order to
+  // find how far it got; also used for the reached-shortlist / reached-site-visit
+  // milestones below.
+  const events = await prisma.projectStageEvent.findMany({
+    where: { projectId: { in: projects.map((p) => p.id) } },
+    select: { projectId: true, toStage: true },
+    orderBy: { changedAt: "asc" },
+  });
+
+  // A project "reached" a milestone if its current stage is at/past it OR its
+  // history ever hit it (so a project shortlisted and later lost still counts).
+  const everReachedShortlist = new Set<string>();
+  const everReachedSiteVisit = new Set<string>();
+  for (const e of events) {
+    if (SHORTLIST_OR_BEYOND.includes(e.toStage)) everReachedShortlist.add(e.projectId);
+    if (SITE_VISIT_OR_BEYOND.includes(e.toStage)) everReachedSiteVisit.add(e.projectId);
+  }
+  const reachedShortlist = (p: { id: string; stage: PipelineStageValue }) =>
+    SHORTLIST_OR_BEYOND.includes(p.stage) || everReachedShortlist.has(p.id);
+  const reachedSiteVisit = (p: { id: string; stage: PipelineStageValue }) =>
+    SITE_VISIT_OR_BEYOND.includes(p.stage) || everReachedSiteVisit.has(p.id);
 
   const received = projects.length;
   const won = projects.filter((p) => p.stage === "WON").length;
@@ -289,12 +343,22 @@ export async function dashboardReport(f: ReportFilters): Promise<DashboardReport
   const submitted = projects.filter((p) =>
     SUBMITTED_STAGES.includes(p.stage as PipelineStageValue),
   ).length;
+  const shortlisted = projects.filter((p) =>
+    reachedShortlist({ id: p.id, stage: p.stage as PipelineStageValue }),
+  ).length;
+  const siteVisited = projects.filter((p) =>
+    reachedSiteVisit({ id: p.id, stage: p.stage as PipelineStageValue }),
+  ).length;
 
   const rates: DashboardRates = {
     winRateOfSubmitted: rate(won, submitted),
     winRateOfReceived: rate(won, received),
+    shortlistRate: rate(shortlisted, submitted),
+    siteVisitRate: rate(siteVisited, submitted),
     received,
     submitted,
+    shortlisted,
+    siteVisited,
     won,
     lost,
     noSubmission,
@@ -307,36 +371,40 @@ export async function dashboardReport(f: ReportFilters): Promise<DashboardReport
       .filter((d): d is Date => d !== null),
   );
 
-  // Ordered ascending: buildSankey walks each project's history in time order to
-  // find how far it got.
-  const events = await prisma.projectStageEvent.findMany({
-    where: { projectId: { in: projects.map((p) => p.id) } },
-    select: { projectId: true, toStage: true },
-    orderBy: { changedAt: "asc" },
-  });
   const sankey = buildSankey(
     projects.map((p) => ({ id: p.id, stage: p.stage })),
     events,
   );
 
+  // Industries rolled up to the 2-digit NAICS sector (e.g. "Manufacturing"),
+  // which is how the org presents this in board decks.
   const byIndustry = topBreakdown(
-    projects.map((p) => ({
-      key: p.naicsCode,
-      label: p.naicsCode
-        ? (NAICS_BY_CODE[p.naicsCode] ?? p.industryDescription ?? p.naicsCode)
-        : "Not specified",
-    })),
+    projects.map((p) => {
+      const sector = p.naicsSector ?? toNaicsSector(p.naicsCode);
+      return {
+        key: sector,
+        label: sector ? naicsSectorLabel(sector) ?? sector : "Not specified",
+      };
+    }),
     8,
   );
 
   const byLeadSource = topBreakdown(
-    projects.map((p) => ({ key: p.leadSource, label: leadSourceLabel(p.leadSource) })),
+    projects.map((p) => leadSourceGroup(p.leadSource)),
     10,
   );
 
-  const projectJobs = projects.map((p) =>
-    p.jobPhases.reduce((sum, j) => sum + j.count, 0),
-  );
+  // One bar per pipeline stage, in board order — the status distribution.
+  const statusCount = new Map<string, number>();
+  for (const p of projects)
+    statusCount.set(p.stage, (statusCount.get(p.stage) ?? 0) + 1);
+  const byStatus: BreakdownRow[] = PIPELINE_STAGES.map((s) => ({
+    key: s.value,
+    label: s.label,
+    count: statusCount.get(s.value) ?? 0,
+  }));
+
+  const projectJobs = projects.map((p) => p.jobs ?? 0);
   const jobsTotal = projectJobs.reduce((a, b) => a + b, 0);
   const projectsReportingJobs = projectJobs.filter((n) => n > 0).length;
 
@@ -374,6 +442,7 @@ export async function dashboardReport(f: ReportFilters): Promise<DashboardReport
     sankey,
     byIndustry,
     byLeadSource,
+    byStatus,
     summary,
   };
 }

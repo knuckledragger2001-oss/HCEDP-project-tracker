@@ -8,7 +8,7 @@ import { getCurrentUser, isInternal } from "@/lib/auth/session";
 import { partnerCityLabel } from "@/lib/placer/schema";
 import { logout } from "./login/actions";
 import { BrandLockup } from "@/components/brand/Logo";
-import MainNav from "@/components/Nav";
+import MainNav, { type NavGroup } from "@/components/Nav";
 import AppProviders from "@/components/ui/AppProviders";
 import WhatsNew from "@/components/whatsnew/WhatsNew";
 import { CHANGELOG, entriesNewerThan } from "@/lib/changelog";
@@ -22,18 +22,36 @@ export const metadata: Metadata = {
     "Hays Caldwell EDP — RFI intake, pipeline, sites and partner reporting.",
 };
 
-const NAV = [
-  { href: "/leads", label: "Leads" },
-  { href: "/", label: "Pipeline" },
-  { href: "/intake", label: "New RFI" },
-  { href: "/sites", label: "Sites" },
-  { href: "/placer", label: "Placer Requests" },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/reports", label: "Reports" },
+// Nav is grouped into tinted clusters so related destinations read as a set.
+// Group 1 (projects workflow), Group 2 (analytics), Group 3 (placer). Admin-only
+// "Users" is appended as a standalone (plain) group. See MainNav for the tints.
+const NAV_GROUPS: NavGroup[] = [
+  {
+    tone: "projects",
+    items: [
+      { href: "/intake", label: "New RFI" },
+      { href: "/", label: "Pipeline" },
+      { href: "/sites", label: "Sites" },
+      { href: "/leads", label: "Leads" },
+    ],
+  },
+  {
+    tone: "analytics",
+    items: [
+      { href: "/dashboard", label: "Dashboard" },
+      { href: "/reports", label: "Reports" },
+    ],
+  },
+  {
+    tone: "placer",
+    items: [{ href: "/placer", label: "Placer Requests" }],
+  },
 ];
 
 // Partners only ever see their own submission area.
-const PARTNER_NAV = [{ href: "/requests", label: "Placer Requests" }];
+const PARTNER_NAV_GROUPS: NavGroup[] = [
+  { tone: "placer", items: [{ href: "/requests", label: "Placer Requests" }] },
+];
 
 const HTML_CLASS = "h-full antialiased";
 
@@ -65,11 +83,14 @@ export default async function RootLayout({
   if (partner && !onPartnerArea) redirect("/requests");
   if (!partner && onPartnerArea) redirect("/placer");
 
-  const navItems = partner
-    ? PARTNER_NAV
+  const navGroups: NavGroup[] = partner
+    ? PARTNER_NAV_GROUPS
     : user.role === "ADMIN"
-      ? [...NAV, { href: "/admin/users", label: "Users" }]
-      : NAV;
+      ? [
+          ...NAV_GROUPS,
+          { tone: "plain", items: [{ href: "/admin/users", label: "Users" }] },
+        ]
+      : NAV_GROUPS;
 
   const unseenChangelog = partner ? [] : entriesNewerThan(user.lastSeenChangelog);
 
@@ -85,7 +106,7 @@ export default async function RootLayout({
             <Link href="/" className="shrink-0">
               <BrandLockup />
             </Link>
-            <MainNav items={navItems} />
+            <MainNav groups={navGroups} />
             <div className="ml-auto flex items-center gap-3">
               {!partner && (
                 <WhatsNew

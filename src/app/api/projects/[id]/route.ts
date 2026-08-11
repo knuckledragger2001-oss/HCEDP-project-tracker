@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { PipelineStageEnum } from "@/lib/projects/schema";
 import { normalizeLocation } from "@/lib/location/normalize";
+import { toNaicsSector } from "@/lib/naics";
 import {
   LeadSourceEnum,
   RequirementPreferenceEnum,
@@ -37,6 +38,10 @@ const UpdateProjectSchema = z.object({
   projectType: nStr,
   buildingSizeNeeds: nStr,
   financingNotes: nStr,
+  electricityNeeds: nStr,
+  waterNeeds: nStr,
+  wastewaterNeeds: nStr,
+  gasNeeds: nStr,
   environmentalNotes: nStr,
   transportationNotes: nStr,
   specialServicesNotes: nStr,
@@ -45,15 +50,21 @@ const UpdateProjectSchema = z.object({
   capexLand: nNum,
   capexBuilding: nNum,
   capexEquipment: nNum,
+  jobs: nNum,
   avgWage: nNum,
   minAcreage: nNum,
+  maxAcreage: nNum,
   minBuildingSqFt: nNum,
+  maxBuildingSqFt: nNum,
   hasFunding: z.boolean().nullable().optional(),
 
   siteLocationPreferences: z.array(z.string()).optional(),
   requiredDeliverables: z.array(z.string()).optional(),
   existingBuildingPreference: RequirementPreferenceEnum.nullable().optional(),
   railPreference: RequirementPreferenceEnum.nullable().optional(),
+
+  // The site chosen when a project is Won (see StageProgress). Null clears it.
+  wonSiteId: nStr,
 
   companyLocationRaw: nStr,
 
@@ -63,7 +74,13 @@ const UpdateProjectSchema = z.object({
   qualitativeNotes: z.array(QualitativeNoteSchema).optional(),
   utilities: z.array(UtilityRequirementSchema).optional(),
   siteVisits: z
-    .array(z.object({ date: z.string(), note: z.string().nullable().optional() }))
+    .array(
+      z.object({
+        date: z.string(),
+        note: z.string().nullable().optional(),
+        siteId: z.string().nullable().optional(),
+      }),
+    )
     .optional(),
 
   rfiReceivedDate: nullableDate,
@@ -88,6 +105,10 @@ const PASSTHROUGH = [
   "projectType",
   "buildingSizeNeeds",
   "financingNotes",
+  "electricityNeeds",
+  "waterNeeds",
+  "wastewaterNeeds",
+  "gasNeeds",
   "environmentalNotes",
   "transportationNotes",
   "specialServicesNotes",
@@ -95,15 +116,19 @@ const PASSTHROUGH = [
   "capexLand",
   "capexBuilding",
   "capexEquipment",
+  "jobs",
   "avgWage",
   "minAcreage",
+  "maxAcreage",
   "minBuildingSqFt",
+  "maxBuildingSqFt",
   "hasFunding",
   "noSubmissionReason",
   "siteLocationPreferences",
   "requiredDeliverables",
   "existingBuildingPreference",
   "railPreference",
+  "wonSiteId",
 ] as const;
 
 function toDate(value: string | null | undefined): Date | null | undefined {
@@ -196,6 +221,8 @@ export async function PATCH(
   for (const key of PASSTHROUGH) {
     if (d[key] !== undefined) data[key] = d[key];
   }
+  // Keep the derived 2-digit NAICS sector in sync whenever the code changes.
+  if (d.naicsCode !== undefined) data.naicsSector = toNaicsSector(d.naicsCode);
   if (d.stage !== undefined) data.stage = d.stage;
   if (d.archived !== undefined) {
     data.archivedAt = d.archived ? new Date() : null;
@@ -285,13 +312,21 @@ export async function PATCH(
   // single siteVisitDate in sync (earliest visit) for board/stage date logic.
   if (d.siteVisits !== undefined) {
     const visits = d.siteVisits
-      .map((v) => ({ date: toDate(v.date), note: v.note ?? null }))
-      .filter((v): v is { date: Date; note: string | null } => v.date != null);
+      .map((v) => ({
+        date: toDate(v.date),
+        note: v.note ?? null,
+        siteId: v.siteId ?? null,
+      }))
+      .filter(
+        (v): v is { date: Date; note: string | null; siteId: string | null } =>
+          v.date != null,
+      );
     data.siteVisits = {
       deleteMany: {},
       create: visits.map((v, i) => ({
         visitDate: v.date,
         note: v.note,
+        siteId: v.siteId,
         orderIndex: i,
       })),
     };

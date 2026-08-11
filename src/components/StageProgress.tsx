@@ -38,26 +38,77 @@ function clipFor(first: boolean): string {
 export default function StageProgress({
   projectId,
   stage: initial,
+  wonSiteId,
+  submittedSites,
 }: {
   projectId: string;
   stage: PipelineStageValue;
+  wonSiteId: string | null;
+  // Sites submitted for this project — the choices when marking the project Won.
+  submittedSites: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const toast = useToast();
   const [stage, setStage] = useState<PipelineStageValue>(initial);
   const [saving, setSaving] = useState(false);
+  // Won-site picker: choosing which submitted site was selected when we win, so
+  // the project rolls up under exactly one community in reports.
+  const [wonPickerOpen, setWonPickerOpen] = useState(false);
+  const [pickedSite, setPickedSite] = useState<string>(wonSiteId ?? "");
 
   const currentIndex = PROGRESS.findIndex((s) => s.value === stage);
   const isLost = stage === "LOST";
   const isNoSubmission = stage === "NO_SUBMISSION";
+  const wonSiteName =
+    submittedSites.find((s) => s.id === wonSiteId)?.name ?? null;
+
+  // Perform the stage change (and any extra fields) with optimistic UI.
+  async function commit(
+    next: PipelineStageValue,
+    extra: Record<string, unknown> = {},
+  ) {
+    const prev = stage;
+    setStage(next);
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: next, ...extra }),
+      });
+      if (!res.ok) throw new Error();
+      router.refresh();
+      const label =
+        PIPELINE_STAGES.find((s) => s.value === next)?.label ?? "new stage";
+      toast.success(`Moved to ${label}.`);
+    } catch {
+      setStage(prev);
+      toast.error("Could not change stage.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function change(next: PipelineStageValue) {
-    if (next === stage || saving) return;
+    if (saving) return;
+
+    // Winning: prompt to pick which submitted site was chosen, so the project
+    // reports under one community. Re-opening the picker while already Won lets
+    // staff change the chosen site.
+    if (next === "WON") {
+      if (submittedSites.length === 0) {
+        if (next === stage) return;
+        await commit("WON");
+        return;
+      }
+      setPickedSite(wonSiteId ?? submittedSites[0]?.id ?? "");
+      setWonPickerOpen(true);
+      return;
+    }
+
+    if (next === stage) return;
 
     // Moving into "No Submission" requires recording why we chose not to submit.
-    const body: { stage: PipelineStageValue; noSubmissionReason?: string } = {
-      stage: next,
-    };
     if (next === "NO_SUBMISSION") {
       const reason = window.prompt(
         "Why did we choose not to submit for this project?",
@@ -68,31 +119,20 @@ export default function StageProgress({
         toast.error("A reason is required to move a project to No Submission.");
         return;
       }
-      body.noSubmissionReason = trimmed;
+      await commit("NO_SUBMISSION", { noSubmissionReason: trimmed });
+      return;
     }
 
-    const prev = stage;
-    setStage(next);
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/projects/${projectId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error();
-      router.refresh();
-      const label = PIPELINE_STAGES.find((s) => s.value === next)?.label ?? "new stage";
-      toast.success(`Moved to ${label}.`);
-    } catch {
-      setStage(prev);
-      toast.error("Could not change stage.");
-    } finally {
-      setSaving(false);
-    }
+    await commit(next);
+  }
+
+  async function confirmWon() {
+    setWonPickerOpen(false);
+    await commit("WON", { wonSiteId: pickedSite || null });
   }
 
   return (
+    <div className="space-y-2">
     <div className="flex flex-wrap items-center gap-1">
       <div className="flex items-stretch">
         {PROGRESS.map((s, i) => {
@@ -154,6 +194,60 @@ export default function StageProgress({
       >
         {NO_SUBMISSION.label}
       </button>
+    </div>
+
+    {/* Won-site picker: which submitted site was chosen. */}
+    {wonPickerOpen && (
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-brand/30 bg-brand/5 p-2">
+        <span className="text-xs font-semibold text-brand">Chosen site:</span>
+        <select
+          className="input h-8 w-56 py-1 text-sm"
+          value={pickedSite}
+          onChange={(e) => setPickedSite(e.target.value)}
+          disabled={saving}
+        >
+          <option value="">— No specific site —</option>
+          {submittedSites.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="btn-primary h-8 py-1 text-xs"
+          onClick={confirmWon}
+          disabled={saving}
+        >
+          Confirm Won
+        </button>
+        <button
+          type="button"
+          className="text-xs text-gray-500 hover:underline"
+          onClick={() => setWonPickerOpen(false)}
+          disabled={saving}
+        >
+          Cancel
+        </button>
+      </div>
+    )}
+
+    {/* When already Won, show the chosen site with a shortcut to change it. */}
+    {!wonPickerOpen && stage === "WON" && (
+      <div className="text-xs text-gray-500">
+        Chosen site: <span className="font-medium text-gray-700">{wonSiteName ?? "— none —"}</span>
+        {submittedSites.length > 0 && (
+          <button
+            type="button"
+            className="ml-2 text-brand hover:underline"
+            onClick={() => change("WON")}
+            disabled={saving}
+          >
+            change
+          </button>
+        )}
+      </div>
+    )}
     </div>
   );
 }

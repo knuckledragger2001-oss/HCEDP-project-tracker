@@ -104,14 +104,26 @@ export const ParsedProjectSchema = z.object({
   financingNotes: nullableString,
   hasFunding: z.boolean().nullable().optional(),
 
+  // Single highest job count quoted (peak headcount at full build-out).
+  // Replaces the phased jobPhases breakdown for ingestion.
+  jobs: nullableNumber,
   avgWage: nullableNumber,
 
   minAcreage: nullableNumber,
+  maxAcreage: nullableNumber,
   minBuildingSqFt: nullableNumber,
+  maxBuildingSqFt: nullableNumber,
   buildingSizeNeeds: nullableString,
   siteLocationPreferences: z.array(z.string()).optional().default([]),
   existingBuildingPreference: RequirementPreferenceEnum.nullable().optional(),
   railPreference: RequirementPreferenceEnum.nullable().optional(),
+
+  // Utility requirements captured verbatim as free text (one box per utility).
+  // Replaces the normalized `utilities` array for ingestion.
+  electricityNeeds: nullableString,
+  waterNeeds: nullableString,
+  wastewaterNeeds: nullableString,
+  gasNeeds: nullableString,
 
   environmentalNotes: nullableString,
   transportationNotes: nullableString,
@@ -126,9 +138,14 @@ export const ParsedProjectSchema = z.object({
   projectedDecisionDate: nullableDate,
   productionStartDate: nullableDate,
 
+  // Legacy relations. No longer extracted by the parser or shown in the review
+  // form (jobs → `jobs`; utilities → the *Needs text fields), but kept in the
+  // schema so existing proposals/rows still validate. Excluded from the tool's
+  // extraction JSON schema — see parsedProjectJsonSchema().
   jobPhases: z.array(JobPhaseSchema).optional().default([]),
-  criticalCriteria: z.array(CriticalCriterionSchema).optional().default([]),
   utilities: z.array(UtilityRequirementSchema).optional().default([]),
+
+  criticalCriteria: z.array(CriticalCriterionSchema).optional().default([]),
   qualitativeNotes: z.array(QualitativeNoteSchema).optional().default([]),
 
   parseWarnings: z.array(ParseWarningSchema).optional().default([]),
@@ -148,9 +165,14 @@ export const StagedAttachmentSchema = z.object({
 export type StagedAttachment = z.infer<typeof StagedAttachmentSchema>;
 
 // JSON Schema handed to the Anthropic tool. Derived from the zod schema so the
-// two never drift.
+// two never drift. The legacy `jobPhases`/`utilities` relations are omitted so
+// the model extracts the new single `jobs` number and free-text utility fields
+// instead of a phased/normalized breakdown.
 export function parsedProjectJsonSchema() {
-  return z.toJSONSchema(ParsedProjectSchema, { target: "draft-2020-12" });
+  return z.toJSONSchema(
+    ParsedProjectSchema.omit({ jobPhases: true, utilities: true }),
+    { target: "draft-2020-12" },
+  );
 }
 
 // Blank proposal used when the parser is unavailable (e.g. no API key) so the

@@ -2141,3 +2141,59 @@ export const NAICS_OPTIONS = [
   { value: "", label: "— Select NAICS code —" },
   ...NAICS_LIST.map((e) => ({ value: e.code, label: `${e.code} — ${e.description}` })),
 ];
+
+// ---------------------------------------------------------------------------
+// 2-digit NAICS sectors — for roll-up reporting (dashboard pie, sector reports).
+// A NAICS code of any length maps to exactly one sector. The three "range"
+// sectors (Manufacturing 31-33, Retail 44-45, Transportation 48-49) collapse to
+// a single canonical key so they group as one slice.
+// ---------------------------------------------------------------------------
+
+export const NAICS_SECTOR_LABELS: Record<string, string> = {
+  "11": "Agriculture, Forestry, Fishing and Hunting",
+  "21": "Mining, Quarrying, and Oil and Gas Extraction",
+  "22": "Utilities",
+  "23": "Construction",
+  "31-33": "Manufacturing",
+  "42": "Wholesale Trade",
+  "44-45": "Retail Trade",
+  "48-49": "Transportation and Warehousing",
+  "51": "Information",
+  "52": "Finance and Insurance",
+  "53": "Real Estate and Rental and Leasing",
+  "54": "Professional, Scientific, and Technical Services",
+  "55": "Management of Companies and Enterprises",
+  "56": "Administrative and Support and Waste Management and Remediation Services",
+  "61": "Educational Services",
+  "62": "Health Care and Social Assistance",
+  "71": "Arts, Entertainment, and Recreation",
+  "72": "Accommodation and Food Services",
+  "81": "Other Services (except Public Administration)",
+  "92": "Public Administration",
+};
+
+// Every valid 2-digit prefix → its canonical sector key (range sectors collapse).
+const SECTOR_BY_PREFIX: Record<string, string> = {
+  "11": "11", "21": "21", "22": "22", "23": "23",
+  "31": "31-33", "32": "31-33", "33": "31-33",
+  "42": "42",
+  "44": "44-45", "45": "44-45",
+  "48": "48-49", "49": "48-49",
+  "51": "51", "52": "52", "53": "53", "54": "54", "55": "55", "56": "56",
+  "61": "61", "62": "62", "71": "71", "72": "72", "81": "81", "92": "92",
+};
+
+// Derive the canonical 2-digit sector key from a NAICS code of any length.
+// Returns null for empty/invalid input.
+export function toNaicsSector(code?: string | null): string | null {
+  if (!code) return null;
+  const digits = String(code).replace(/\D/g, "");
+  if (digits.length < 2) return null;
+  return SECTOR_BY_PREFIX[digits.slice(0, 2)] ?? null;
+}
+
+// Human label for a sector key (e.g. "31-33" → "Manufacturing").
+export function naicsSectorLabel(sector?: string | null): string | null {
+  if (!sector) return null;
+  return NAICS_SECTOR_LABELS[sector] ?? sector;
+}

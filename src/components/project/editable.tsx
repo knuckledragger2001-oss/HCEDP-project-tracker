@@ -35,13 +35,6 @@ const PREFERENCE_OPTIONS = [
     label,
   })),
 ];
-const UTILITY_OPTIONS = [
-  { value: "ELECTRICITY", label: "Electricity" },
-  { value: "WATER", label: "Water" },
-  { value: "WASTEWATER", label: "Wastewater" },
-  { value: "GAS", label: "Gas" },
-];
-
 // Shared PATCH helper; refreshes the server component on success.
 function useSectionSave(projectId: string) {
   const router = useRouter();
@@ -275,6 +268,7 @@ const DATE_FIELDS: { key: string; label: string }[] = [
 interface SiteVisitItem {
   date: string;
   note: string | null;
+  siteId: string | null;
 }
 
 export function EditableSourceDates(props: {
@@ -288,6 +282,8 @@ export function EditableSourceDates(props: {
   companyCountry: string | null;
   dates: Record<string, string | null>;
   siteVisits: SiteVisitItem[];
+  // Sites submitted for this project — the options for the per-visit site picker.
+  submittedSites: { id: string; name: string; communityName: string }[];
 }) {
   const { save, saving, error } = useSectionSave(props.projectId);
   const [editing, setEditing] = useState(false);
@@ -310,6 +306,7 @@ export function EditableSourceDates(props: {
       props.siteVisits.map((v) => ({
         date: toDateInputValue(v.date),
         note: v.note,
+        siteId: v.siteId,
       })),
     );
     setEditing(true);
@@ -322,11 +319,17 @@ export function EditableSourceDates(props: {
       companyLocationRaw: location.trim() || null,
       siteVisits: visits
         .filter((v) => v.date)
-        .map((v) => ({ date: v.date, note: v.note?.trim() || null })),
+        .map((v) => ({
+          date: v.date,
+          note: v.note?.trim() || null,
+          siteId: v.siteId || null,
+        })),
     };
     for (const f of DATE_FIELDS) payload[f.key] = dates[f.key] || null;
     if (await save(payload)) setEditing(false);
   }
+
+  const siteNameById = new Map(props.submittedSites.map((s) => [s.id, s.name]));
 
   // Live preview of how the typed location resolves (city / state / country).
   const resolved = location.trim() ? describeLocation(normalizeLocation(location)) : "";
@@ -368,7 +371,12 @@ export function EditableSourceDates(props: {
               <ul className="space-y-0.5 text-sm text-gray-700">
                 {props.siteVisits.map((v, i) => (
                   <li key={i} className="flex justify-between gap-3">
-                    <span className="font-medium">{formatDate(v.date)}</span>
+                    <span className="font-medium">
+                      {formatDate(v.date)}
+                      {v.siteId && siteNameById.has(v.siteId)
+                        ? ` — ${siteNameById.get(v.siteId)}`
+                        : ""}
+                    </span>
                     {v.note && <span className="text-right text-gray-500">{v.note}</span>}
                   </li>
                 ))}
@@ -430,6 +438,11 @@ export function EditableSourceDates(props: {
           </div>
           <div className="border-t border-gray-100 pt-2">
             <span className="label">Site visits</span>
+            {props.submittedSites.length === 0 && (
+              <p className="mb-1 text-xs text-gray-400">
+                Submit sites below to link a visit to a specific site.
+              </p>
+            )}
             {visits.map((v, i) => (
               <div key={i} className="mb-1 flex flex-wrap items-center gap-2">
                 <input
@@ -442,6 +455,24 @@ export function EditableSourceDates(props: {
                     )
                   }
                 />
+                <select
+                  className="input w-48"
+                  value={v.siteId ?? ""}
+                  onChange={(e) =>
+                    setVisits((cur) =>
+                      cur.map((x, j) =>
+                        j === i ? { ...x, siteId: e.target.value || null } : x,
+                      ),
+                    )
+                  }
+                >
+                  <option value="">— Site visited —</option>
+                  {props.submittedSites.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
                 <input
                   className="input flex-1"
                   placeholder="note (who attended / outcome)"
@@ -462,7 +493,9 @@ export function EditableSourceDates(props: {
             ))}
             <button
               className="text-xs text-brand hover:underline"
-              onClick={() => setVisits((cur) => [...cur, { date: "", note: "" }])}
+              onClick={() =>
+                setVisits((cur) => [...cur, { date: "", note: "", siteId: null }])
+              }
             >
               + Add site visit
             </button>
@@ -475,11 +508,6 @@ export function EditableSourceDates(props: {
 
 // --- Investment & jobs --------------------------------------------------------
 
-interface JobPhase {
-  count: number;
-  timeframe: string;
-}
-
 export function EditableInvestmentJobs(props: {
   projectId: string;
   capexTotal: number | null;
@@ -488,7 +516,7 @@ export function EditableInvestmentJobs(props: {
   capexEquipment: number | null;
   avgWage: number | null;
   financingNotes: string | null;
-  jobPhases: JobPhase[];
+  jobs: number | null;
 }) {
   const { save, saving, error } = useSectionSave(props.projectId);
   const [editing, setEditing] = useState(false);
@@ -502,7 +530,7 @@ export function EditableInvestmentJobs(props: {
   );
   const [avgWage, setAvgWage] = useState<number | null>(props.avgWage);
   const [financing, setFinancing] = useState(props.financingNotes ?? "");
-  const [phases, setPhases] = useState<JobPhase[]>(props.jobPhases);
+  const [jobs, setJobs] = useState<number | null>(props.jobs);
 
   function begin() {
     setCapexTotal(props.capexTotal);
@@ -511,7 +539,7 @@ export function EditableInvestmentJobs(props: {
     setCapexEquipment(props.capexEquipment);
     setAvgWage(props.avgWage);
     setFinancing(props.financingNotes ?? "");
-    setPhases(props.jobPhases);
+    setJobs(props.jobs);
     setEditing(true);
   }
   async function onSave() {
@@ -522,9 +550,7 @@ export function EditableInvestmentJobs(props: {
       capexEquipment,
       avgWage,
       financingNotes: financing || null,
-      jobPhases: phases
-        .filter((p) => p.timeframe.trim() !== "")
-        .map((p) => ({ count: Math.round(p.count) || 0, timeframe: p.timeframe })),
+      jobs: jobs == null ? null : Math.round(jobs),
     });
     if (ok) setEditing(false);
   }
@@ -545,16 +571,11 @@ export function EditableInvestmentJobs(props: {
           <Row label="Land" value={formatCurrency(props.capexLand)} />
           <Row label="Building" value={formatCurrency(props.capexBuilding)} />
           <Row label="Equipment" value={formatCurrency(props.capexEquipment)} />
+          <Row
+            label="Jobs (peak)"
+            value={props.jobs != null ? formatNumber(props.jobs) : "—"}
+          />
           <Row label="Avg wage" value={formatCurrency(props.avgWage)} />
-          <div className="mt-2 border-t border-gray-100 pt-2">
-            {props.jobPhases.length === 0 ? (
-              <p className="text-sm text-gray-400">No job phases.</p>
-            ) : (
-              props.jobPhases.map((j, i) => (
-                <Row key={i} label={j.timeframe} value={`${formatNumber(j.count)} jobs`} />
-              ))
-            )}
-          </div>
           {props.financingNotes && (
             <p className="mt-2 text-xs text-gray-500">{props.financingNotes}</p>
           )}
@@ -564,6 +585,9 @@ export function EditableInvestmentJobs(props: {
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             <GridField label="Total capex (USD)">
               <NumberInput value={capexTotal} onChange={setCapexTotal} />
+            </GridField>
+            <GridField label="Jobs (peak)">
+              <NumberInput value={jobs} onChange={setJobs} />
             </GridField>
             <GridField label="Avg wage (USD)">
               <NumberInput value={avgWage} onChange={setAvgWage} />
@@ -581,54 +605,6 @@ export function EditableInvestmentJobs(props: {
           <GridField label="Financing notes">
             <Area value={financing} onChange={setFinancing} rows={2} />
           </GridField>
-          <div>
-            <span className="label">Job phases</span>
-            {phases.map((p, i) => (
-              <div key={i} className="mb-1 flex gap-2">
-                <input
-                  type="number"
-                  className="input w-28"
-                  placeholder="count"
-                  value={p.count}
-                  onChange={(e) =>
-                    setPhases((cur) =>
-                      cur.map((x, j) =>
-                        j === i ? { ...x, count: Number(e.target.value) } : x,
-                      ),
-                    )
-                  }
-                />
-                <input
-                  className="input"
-                  placeholder="timeframe (e.g. Year One)"
-                  value={p.timeframe}
-                  onChange={(e) =>
-                    setPhases((cur) =>
-                      cur.map((x, j) =>
-                        j === i ? { ...x, timeframe: e.target.value } : x,
-                      ),
-                    )
-                  }
-                />
-                <button
-                  className="text-xs text-red-500 hover:underline"
-                  onClick={() =>
-                    setPhases((cur) => cur.filter((_, j) => j !== i))
-                  }
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-            <button
-              className="text-xs text-brand hover:underline"
-              onClick={() =>
-                setPhases((cur) => [...cur, { count: 0, timeframe: "" }])
-              }
-            >
-              + Add job phase
-            </button>
-          </div>
         </div>
       )}
     </SectionShell>
@@ -640,7 +616,9 @@ export function EditableInvestmentJobs(props: {
 export function EditableSiteRequirements(props: {
   projectId: string;
   minAcreage: number | null;
+  maxAcreage: number | null;
   minBuildingSqFt: number | null;
+  maxBuildingSqFt: number | null;
   siteLocationPreferences: string[];
   buildingSizeNeeds: string | null;
   requiredDeliverables: string[];
@@ -650,7 +628,9 @@ export function EditableSiteRequirements(props: {
   const { save, saving, error } = useSectionSave(props.projectId);
   const [editing, setEditing] = useState(false);
   const [minAcreage, setMinAcreage] = useState<number | null>(props.minAcreage);
+  const [maxAcreage, setMaxAcreage] = useState<number | null>(props.maxAcreage);
   const [minBuildingSqFt, setMinBuildingSqFt] = useState<number | null>(props.minBuildingSqFt);
+  const [maxBuildingSqFt, setMaxBuildingSqFt] = useState<number | null>(props.maxBuildingSqFt);
   const [prefs, setPrefs] = useState(props.siteLocationPreferences.join(", "));
   const [building, setBuilding] = useState(props.buildingSizeNeeds ?? "");
   const [deliverables, setDeliverables] = useState(
@@ -663,7 +643,9 @@ export function EditableSiteRequirements(props: {
 
   function begin() {
     setMinAcreage(props.minAcreage);
+    setMaxAcreage(props.maxAcreage);
     setMinBuildingSqFt(props.minBuildingSqFt);
+    setMaxBuildingSqFt(props.maxBuildingSqFt);
     setPrefs(props.siteLocationPreferences.join(", "));
     setBuilding(props.buildingSizeNeeds ?? "");
     setDeliverables(props.requiredDeliverables.join(", "));
@@ -676,7 +658,9 @@ export function EditableSiteRequirements(props: {
   async function onSave() {
     const ok = await save({
       minAcreage,
+      maxAcreage,
       minBuildingSqFt,
+      maxBuildingSqFt,
       buildingSizeNeeds: building || null,
       siteLocationPreferences: csv(prefs),
       requiredDeliverables: csv(deliverables),
@@ -685,6 +669,18 @@ export function EditableSiteRequirements(props: {
     });
     if (ok) setEditing(false);
   }
+
+  // "min ac" or "min–max ac" depending on whether a max is set.
+  const acreageDisplay = props.minAcreage
+    ? props.maxAcreage
+      ? `${formatNumber(props.minAcreage)}–${formatNumber(props.maxAcreage)} ac`
+      : `${formatNumber(props.minAcreage)} ac`
+    : "—";
+  const buildingDisplay = props.minBuildingSqFt
+    ? props.maxBuildingSqFt
+      ? `${formatNumber(props.minBuildingSqFt)}–${formatNumber(props.maxBuildingSqFt)} sf`
+      : `${formatNumber(props.minBuildingSqFt)} sf`
+    : "—";
 
   return (
     <SectionShell
@@ -698,14 +694,8 @@ export function EditableSiteRequirements(props: {
     >
       {!editing ? (
         <>
-          <Row
-            label="Min acreage"
-            value={props.minAcreage ? `${props.minAcreage} ac` : "—"}
-          />
-          <Row
-            label="Min building sq ft"
-            value={props.minBuildingSqFt ? `${formatNumber(props.minBuildingSqFt)} sf` : "—"}
-          />
+          <Row label="Acreage" value={acreageDisplay} />
+          <Row label="Building sq ft" value={buildingDisplay} />
           <Row
             label="Location prefs"
             value={
@@ -750,12 +740,20 @@ export function EditableSiteRequirements(props: {
         </>
       ) : (
         <div className="space-y-2">
-          <GridField label="Min acreage">
-            <NumberInput value={minAcreage} onChange={setMinAcreage} />
-          </GridField>
-          <GridField label="Min building sq ft">
-            <NumberInput value={minBuildingSqFt} onChange={setMinBuildingSqFt} />
-          </GridField>
+          <div className="grid grid-cols-2 gap-2">
+            <GridField label="Min acreage">
+              <NumberInput value={minAcreage} onChange={setMinAcreage} />
+            </GridField>
+            <GridField label="Max acreage">
+              <NumberInput value={maxAcreage} onChange={setMaxAcreage} />
+            </GridField>
+            <GridField label="Min building sq ft">
+              <NumberInput value={minBuildingSqFt} onChange={setMinBuildingSqFt} />
+            </GridField>
+            <GridField label="Max building sq ft">
+              <NumberInput value={maxBuildingSqFt} onChange={setMaxBuildingSqFt} />
+            </GridField>
+          </div>
           <GridField label="Location preferences (comma-separated)">
             <Text value={prefs} onChange={setPrefs} />
           </GridField>
@@ -965,76 +963,47 @@ export function EditableQualitative(props: {
 
 // --- Utilities ----------------------------------------------------------------
 
-interface Datapoint {
-  kind: string | null;
-  label: string | null;
-  value: number | null;
-  unit: string | null;
-  date: string | null;
-  rawValue: string | null;
-  flagged: boolean;
-  assumptionNote: string | null;
-}
-interface Utility {
-  type: string;
-  normalizedValue: number | null;
-  normalizedUnit: string | null;
-  rawValue: string | null;
-  purpose: string | null;
-  alternatives: string | null;
-  notes: string | null;
-  flagged: boolean;
-  assumptionNote: string | null;
-  datapoints: Datapoint[];
-}
-
-function emptyUtility(): Utility {
-  return {
-    type: "ELECTRICITY",
-    normalizedValue: null,
-    normalizedUnit: null,
-    rawValue: null,
-    purpose: null,
-    alternatives: null,
-    notes: null,
-    flagged: false,
-    assumptionNote: null,
-    datapoints: [],
-  };
-}
-
+// Utilities are now free text — one box per utility, captured as written in the
+// RFI. (The legacy normalized UtilityRequirement data is retained in the DB for
+// historical projects but no longer shown or edited here.)
 export function EditableUtilities(props: {
   projectId: string;
-  utilities: Utility[];
+  electricityNeeds: string | null;
+  waterNeeds: string | null;
+  wastewaterNeeds: string | null;
+  gasNeeds: string | null;
 }) {
   const { save, saving, error } = useSectionSave(props.projectId);
   const [editing, setEditing] = useState(false);
-  const [items, setItems] = useState<Utility[]>(props.utilities);
+  const [electricity, setElectricity] = useState(props.electricityNeeds ?? "");
+  const [water, setWater] = useState(props.waterNeeds ?? "");
+  const [wastewater, setWastewater] = useState(props.wastewaterNeeds ?? "");
+  const [gas, setGas] = useState(props.gasNeeds ?? "");
 
   function begin() {
-    setItems(props.utilities);
+    setElectricity(props.electricityNeeds ?? "");
+    setWater(props.waterNeeds ?? "");
+    setWastewater(props.wastewaterNeeds ?? "");
+    setGas(props.gasNeeds ?? "");
     setEditing(true);
   }
-  function patchU(i: number, patch: Partial<Utility>) {
-    setItems((cur) => cur.map((u, j) => (j === i ? { ...u, ...patch } : u)));
-  }
-  function patchDp(ui: number, di: number, patch: Partial<Datapoint>) {
-    setItems((cur) =>
-      cur.map((u, j) =>
-        j === ui
-          ? {
-              ...u,
-              datapoints: u.datapoints.map((d, k) =>
-                k === di ? { ...d, ...patch } : d,
-              ),
-            }
-          : u,
-      ),
-    );
-  }
   async function onSave() {
-    if (await save({ utilities: items })) setEditing(false);
+    const ok = await save({
+      electricityNeeds: electricity.trim() || null,
+      waterNeeds: water.trim() || null,
+      wastewaterNeeds: wastewater.trim() || null,
+      gasNeeds: gas.trim() || null,
+    });
+    if (ok) setEditing(false);
   }
+
+  const rows: { label: string; value: string | null }[] = [
+    { label: "Electricity", value: props.electricityNeeds },
+    { label: "Water", value: props.waterNeeds },
+    { label: "Wastewater", value: props.wastewaterNeeds },
+    { label: "Gas", value: props.gasNeeds },
+  ];
+  const anySet = rows.some((r) => r.value && r.value.trim());
 
   return (
     <SectionShell
@@ -1047,185 +1016,36 @@ export function EditableUtilities(props: {
       error={error}
     >
       {!editing ? (
-        props.utilities.length === 0 ? (
+        !anySet ? (
           <p className="text-sm text-gray-400">None recorded.</p>
         ) : (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {props.utilities.map((u, i) => (
-              <div key={i} className="rounded-md border border-gray-200 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-gray-900">
-                    {u.type.charAt(0) + u.type.slice(1).toLowerCase()}
-                  </span>
-                  <span className="flex items-center gap-1 text-sm text-gray-700">
-                    {u.normalizedValue != null
-                      ? `${formatNumber(u.normalizedValue)} ${u.normalizedUnit ?? ""}`
-                      : "—"}
-                    {u.flagged && u.assumptionNote && (
-                      <span
-                        className="cursor-help text-amber-600"
-                        title={u.assumptionNote}
-                        aria-label={u.assumptionNote}
-                      >
-                        ⚠
-                      </span>
-                    )}
-                  </span>
+          <div className="space-y-2">
+            {rows
+              .filter((r) => r.value && r.value.trim())
+              .map((r) => (
+                <div key={r.label}>
+                  <p className="text-xs font-semibold text-gray-700">{r.label}</p>
+                  <p className="whitespace-pre-wrap text-sm text-gray-600">
+                    {r.value}
+                  </p>
                 </div>
-                {u.rawValue && (
-                  <p className="mt-1 text-xs text-gray-500">Raw: {u.rawValue}</p>
-                )}
-                {u.alternatives && (
-                  <p className="text-xs text-gray-500">Alt: {u.alternatives}</p>
-                )}
-                {u.datapoints.length > 0 && (
-                  <table className="mt-2 w-full text-xs">
-                    <tbody>
-                      {u.datapoints.map((dp, k) => (
-                        <tr key={k} className="text-gray-600">
-                          <td className="pr-2">{dp.kind ?? dp.label ?? "—"}</td>
-                          <td className="pr-2 text-right">
-                            {dp.value != null
-                              ? `${formatNumber(dp.value)} ${dp.unit ?? ""}`
-                              : "—"}
-                          </td>
-                          <td className="text-right text-gray-400">
-                            {dp.date ? formatDate(dp.date) : ""}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            ))}
+              ))}
           </div>
         )
       ) : (
-        <div className="space-y-3">
-          {items.map((u, i) => (
-            <div key={i} className="rounded-md border border-gray-200 p-3">
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                <GridField label="Type">
-                  <Select
-                    value={u.type}
-                    onChange={(v) => patchU(i, { type: v })}
-                    options={UTILITY_OPTIONS}
-                  />
-                </GridField>
-                <GridField label="Normalized value">
-                  <NumberInput
-                    value={u.normalizedValue}
-                    onChange={(v) => patchU(i, { normalizedValue: v })}
-                  />
-                </GridField>
-                <GridField label="Normalized unit">
-                  <Text
-                    value={u.normalizedUnit ?? ""}
-                    onChange={(v) => patchU(i, { normalizedUnit: v || null })}
-                  />
-                </GridField>
-                <GridField label="Raw value">
-                  <Text
-                    value={u.rawValue ?? ""}
-                    onChange={(v) => patchU(i, { rawValue: v || null })}
-                  />
-                </GridField>
-                <GridField label="Purpose">
-                  <Text
-                    value={u.purpose ?? ""}
-                    onChange={(v) => patchU(i, { purpose: v || null })}
-                  />
-                </GridField>
-                <GridField label="Alternatives">
-                  <Text
-                    value={u.alternatives ?? ""}
-                    onChange={(v) => patchU(i, { alternatives: v || null })}
-                  />
-                </GridField>
-              </div>
-              <div className="mt-2">
-                <span className="label">Datapoints</span>
-                {u.datapoints.map((dp, k) => (
-                  <div key={k} className="mb-1 flex flex-wrap gap-1">
-                    <input
-                      className="input w-28"
-                      placeholder="kind"
-                      value={dp.kind ?? ""}
-                      onChange={(e) => patchDp(i, k, { kind: e.target.value || null })}
-                    />
-                    <input
-                      type="number"
-                      className="input w-24"
-                      placeholder="value"
-                      value={dp.value ?? ""}
-                      onChange={(e) =>
-                        patchDp(i, k, {
-                          value: e.target.value === "" ? null : Number(e.target.value),
-                        })
-                      }
-                    />
-                    <input
-                      className="input w-20"
-                      placeholder="unit"
-                      value={dp.unit ?? ""}
-                      onChange={(e) => patchDp(i, k, { unit: e.target.value || null })}
-                    />
-                    <input
-                      type="date"
-                      className="input w-40"
-                      value={dp.date ? dp.date.slice(0, 10) : ""}
-                      onChange={(e) => patchDp(i, k, { date: e.target.value || null })}
-                    />
-                    <button
-                      className="text-xs text-red-500 hover:underline"
-                      onClick={() =>
-                        patchU(i, {
-                          datapoints: u.datapoints.filter((_, x) => x !== k),
-                        })
-                      }
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                <button
-                  className="text-xs text-brand hover:underline"
-                  onClick={() =>
-                    patchU(i, {
-                      datapoints: [
-                        ...u.datapoints,
-                        {
-                          kind: null,
-                          label: null,
-                          value: null,
-                          unit: null,
-                          date: null,
-                          rawValue: null,
-                          flagged: false,
-                          assumptionNote: null,
-                        },
-                      ],
-                    })
-                  }
-                >
-                  + Add datapoint
-                </button>
-              </div>
-              <button
-                className="mt-2 text-xs text-red-500 hover:underline"
-                onClick={() => setItems((cur) => cur.filter((_, j) => j !== i))}
-              >
-                Remove utility
-              </button>
-            </div>
-          ))}
-          <button
-            className="text-xs text-brand hover:underline"
-            onClick={() => setItems((cur) => [...cur, emptyUtility()])}
-          >
-            + Add utility
-          </button>
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          <GridField label="Electricity">
+            <Area value={electricity} onChange={setElectricity} rows={3} />
+          </GridField>
+          <GridField label="Water">
+            <Area value={water} onChange={setWater} rows={3} />
+          </GridField>
+          <GridField label="Wastewater">
+            <Area value={wastewater} onChange={setWastewater} rows={3} />
+          </GridField>
+          <GridField label="Gas">
+            <Area value={gas} onChange={setGas} rows={3} />
+          </GridField>
         </div>
       )}
     </SectionShell>

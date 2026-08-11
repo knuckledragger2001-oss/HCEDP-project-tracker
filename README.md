@@ -205,6 +205,18 @@ The app is host-agnostic (Vercel, Render, Railway, a container, …). To deploy:
 
 ## Roadmap (intentionally not built yet)
 
+- Cross-fiscal-year "won" attribution: an FY26 project won in 2027 currently has
+  no dedicated date to place it in the right reporting period (WON is recorded
+  only in stage history). Decide whether to add a `wonDate` field and how the
+  reports should treat carry-over projects. (Deferred 2026-08-10, pending
+  fiscal-year reporting decisions.)
+- Dashboard "demand for space" charts (existing industrial space by sq ft;
+  greenfield by acreage): two grouped bar charts using the ranges industrial
+  &lt;49k / 50k–99,999 / 100k–249k / 250k–499,999 / &gt;500k sq ft and greenfield
+  &lt;24 / 25–99 / 100–249 / 250–499 / &gt;500 ac. Blocked on how a project is
+  classified industrial vs. greenfield (existing-building preference vs. which
+  size field is filled, and whether one project can count in both). (Deferred
+  2026-08-10, pending team input.)
 - Generate RFI Response documents from stored project data
 - Site database sourced from LoopNet and automated site-search matching
 - Inbound Outlook task that posts to the same internal intake endpoint

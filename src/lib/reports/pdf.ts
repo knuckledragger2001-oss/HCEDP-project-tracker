@@ -7,6 +7,7 @@ import type {
   TDocumentDefinitions,
 } from "pdfmake/interfaces";
 import {
+  type CityActivityProject,
   type CityActivityReport,
   type LeadSourceReport,
   type ProviderActivityReport,
@@ -16,7 +17,8 @@ import {
 } from "@/lib/reports/data";
 import { type DashboardReport } from "@/lib/reports/dashboard";
 import { layoutSankey } from "@/lib/reports/sankeyLayout";
-import { STAGE_LABELS, SUBMISSION_STATUS_LABELS } from "@/lib/format";
+import { STAGE_LABELS } from "@/lib/format";
+import { NAICS_BY_CODE } from "@/lib/naics";
 
 // pdfmake's PDFKit/fontkit font loading breaks when bundled by Next/Turbopack
 // (its __dirname-relative reads are rewritten to a numeric module id). So the
@@ -66,6 +68,7 @@ function header(title: string, filters: ReportFilterLabels): Content[] {
       style: "filters",
       columns: [
         { text: `Community: ${filters.community}` },
+        { text: `County: ${filters.county}` },
         { text: `Period: ${filters.period}` },
         { text: `NAICS: ${filters.naics}` },
         { text: `Stage: ${filters.stage}` },
@@ -103,6 +106,57 @@ const styles: StyleDictionary = {
   empty: { fontSize: 9, italics: true, color: "#888" },
 };
 
+// NAICS as "code — official description". Never the free-text industry blurb,
+// which can carry company-identifying detail (e.g. "UK-based company").
+function naicsLabel(code: string | null): string | null {
+  if (!code) return null;
+  const desc = NAICS_BY_CODE[code];
+  return desc ? `NAICS ${code} — ${desc}` : `NAICS ${code}`;
+}
+
+// Shared per-project block for the city/provider reports: name, stage, active
+// date and NAICS, then a small capex/jobs/wage table and the site names. No
+// acreage, no per-site status, no narrative.
+function projectBlocks(p: CityActivityProject): Content[] {
+  const meta = [
+    STAGE_LABELS[p.stage] ?? p.stage,
+    p.rfiReceivedDate
+      ? `Active ${new Date(p.rfiReceivedDate).toLocaleDateString("en-US")}`
+      : null,
+    naicsLabel(p.naicsCode),
+  ].filter(Boolean) as string[];
+
+  return [
+    { text: p.codename, style: "project" },
+    { text: meta.join("  ·  "), style: "meta" },
+    {
+      table: {
+        headerRows: 1,
+        widths: ["auto", "auto", "auto"],
+        body: [
+          [
+            { text: "Capex", style: "th", alignment: "right" },
+            { text: "Jobs", style: "th", alignment: "right" },
+            { text: "Avg wage", style: "th", alignment: "right" },
+          ],
+          [
+            { text: usd(p.capexTotal), style: "td", alignment: "right" },
+            { text: count(p.jobs), style: "td", alignment: "right" },
+            { text: usd(p.avgWage), style: "td", alignment: "right" },
+          ],
+        ],
+      },
+      layout: "lightHorizontalLines",
+      margin: [0, 2, 0, 2] as [number, number, number, number],
+    },
+    {
+      text: `Sites: ${p.sites.map((s) => s.siteName).join(", ") || "—"}`,
+      style: "td",
+      margin: [0, 0, 0, 6] as [number, number, number, number],
+    },
+  ];
+}
+
 export async function cityActivityPdf(
   report: CityActivityReport,
 ): Promise<Buffer> {
@@ -118,44 +172,7 @@ export async function cityActivityPdf(
       style: "community",
     });
     for (const p of c.projects) {
-      content.push({ text: p.codename, style: "project" });
-      const metaParts = [
-        STAGE_LABELS[p.stage] ?? p.stage,
-        p.naicsCode ? `NAICS ${p.naicsCode}` : null,
-        p.industryDescription,
-      ].filter(Boolean);
-      content.push({ text: metaParts.join("  ·  "), style: "meta" });
-      content.push({
-        table: {
-          headerRows: 1,
-          widths: ["*", "auto", "auto", "*"],
-          body: [
-            [
-              { text: "Site", style: "th" },
-              { text: "Acreage", style: "th" },
-              { text: "Submitted", style: "th" },
-              { text: "Status", style: "th" },
-            ],
-            ...p.sites.map((s) => [
-              { text: s.siteName, style: "td" },
-              {
-                text: s.acreage != null ? `${s.acreage} ac` : "—",
-                style: "td",
-              },
-              {
-                text: new Date(s.submissionDate).toLocaleDateString("en-US"),
-                style: "td",
-              },
-              {
-                text: SUBMISSION_STATUS_LABELS[s.status] ?? s.status,
-                style: "td",
-              },
-            ]),
-          ],
-        },
-        layout: "lightHorizontalLines",
-        margin: [0, 2, 0, 4] as [number, number, number, number],
-      });
+      content.push(...projectBlocks(p));
     }
   }
 
@@ -185,38 +202,7 @@ export async function providerActivityPdf(
       style: "community",
     });
     for (const p of g.projects) {
-      content.push({ text: p.codename, style: "project" });
-      const metaParts = [
-        STAGE_LABELS[p.stage] ?? p.stage,
-        p.naicsCode ? `NAICS ${p.naicsCode}` : null,
-        p.industryDescription,
-      ].filter(Boolean);
-      content.push({ text: metaParts.join("  ·  "), style: "meta" });
-      content.push({
-        table: {
-          headerRows: 1,
-          widths: ["*", "auto", "auto", "*"],
-          body: [
-            [
-              { text: "Site", style: "th" },
-              { text: "Acreage", style: "th" },
-              { text: "Submitted", style: "th" },
-              { text: "Status", style: "th" },
-            ],
-            ...p.sites.map((s) => [
-              { text: s.siteName, style: "td" },
-              { text: s.acreage != null ? `${s.acreage} ac` : "—", style: "td" },
-              {
-                text: new Date(s.submissionDate).toLocaleDateString("en-US"),
-                style: "td",
-              },
-              { text: SUBMISSION_STATUS_LABELS[s.status] ?? s.status, style: "td" },
-            ]),
-          ],
-        },
-        layout: "lightHorizontalLines",
-        margin: [0, 2, 0, 4] as [number, number, number, number],
-      });
+      content.push(...projectBlocks(p));
     }
   }
 

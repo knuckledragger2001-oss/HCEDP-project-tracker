@@ -39,16 +39,6 @@ const PREFERENCE_OPTIONS = [
     label,
   })),
 ];
-const UTILITY_OPTIONS = [
-  { value: "ELECTRICITY", label: "Electricity" },
-  { value: "WATER", label: "Water" },
-  { value: "WASTEWATER", label: "Wastewater" },
-  { value: "GAS", label: "Gas" },
-];
-
-type Util = ParsedProject["utilities"][number];
-type Datapoint = Util["datapoints"][number];
-
 function csv(arr: string[] | undefined): string {
   return (arr ?? []).join(", ");
 }
@@ -237,24 +227,6 @@ export default function ReviewForm({
 
   function set<K extends keyof ParsedProject>(key: K, value: ParsedProject[K]) {
     setP((cur) => ({ ...cur, [key]: value }));
-  }
-
-  // --- array helpers -------------------------------------------------------
-  function updateUtil(i: number, patch: Partial<Util>) {
-    setP((cur) => {
-      const utilities = [...cur.utilities];
-      utilities[i] = { ...utilities[i], ...patch };
-      return { ...cur, utilities };
-    });
-  }
-  function updateDatapoint(ui: number, di: number, patch: Partial<Datapoint>) {
-    setP((cur) => {
-      const utilities = [...cur.utilities];
-      const datapoints = [...utilities[ui].datapoints];
-      datapoints[di] = { ...datapoints[di], ...patch };
-      utilities[ui] = { ...utilities[ui], datapoints };
-      return { ...cur, utilities };
-    });
   }
 
   const flags = p.parseWarnings ?? [];
@@ -451,71 +423,31 @@ export default function ReviewForm({
         </Section>
 
         <Section title="Jobs & wages">
-          <Field label="Average wage (USD)">
-            <NumberInput value={p.avgWage ?? null} onChange={(v) => set("avgWage", v)} />
-          </Field>
-          <div className="space-y-2">
-            <span className="label">Phased job counts</span>
-            {(p.jobPhases ?? []).map((j, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <input
-                  type="number"
-                  className="input w-24"
-                  value={j.count}
-                  onChange={(e) =>
-                    setP((cur) => {
-                      const jobPhases = [...cur.jobPhases];
-                      jobPhases[i] = { ...jobPhases[i], count: Number(e.target.value) };
-                      return { ...cur, jobPhases };
-                    })
-                  }
-                />
-                <input
-                  className="input flex-1"
-                  placeholder="timeframe (e.g. Year One)"
-                  value={j.timeframe}
-                  onChange={(e) =>
-                    setP((cur) => {
-                      const jobPhases = [...cur.jobPhases];
-                      jobPhases[i] = { ...jobPhases[i], timeframe: e.target.value };
-                      return { ...cur, jobPhases };
-                    })
-                  }
-                />
-                <button
-                  className="btn-danger"
-                  onClick={() =>
-                    setP((cur) => ({
-                      ...cur,
-                      jobPhases: cur.jobPhases.filter((_, x) => x !== i),
-                    }))
-                  }
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-            <button
-              className="btn-secondary"
-              onClick={() =>
-                setP((cur) => ({
-                  ...cur,
-                  jobPhases: [...cur.jobPhases, { count: 0, timeframe: "" }],
-                }))
-              }
-            >
-              + Add job phase
-            </button>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Jobs (peak)" flagged={flagged("jobs")} hint="highest count quoted">
+              <NumberInput value={p.jobs ?? null} onChange={(v) => set("jobs", v)} />
+            </Field>
+            <Field label="Average wage (USD)">
+              <NumberInput value={p.avgWage ?? null} onChange={(v) => set("avgWage", v)} />
+            </Field>
           </div>
         </Section>
 
         <Section title="Site requirements">
-          <Field label="Minimum acreage" flagged={flagged("minAcreage")}>
-            <NumberInput value={p.minAcreage ?? null} onChange={(v) => set("minAcreage", v)} />
-          </Field>
-          <Field label="Minimum building sq ft" flagged={flagged("minBuildingSqFt")}>
-            <NumberInput value={p.minBuildingSqFt ?? null} onChange={(v) => set("minBuildingSqFt", v)} />
-          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Minimum acreage" flagged={flagged("minAcreage")}>
+              <NumberInput value={p.minAcreage ?? null} onChange={(v) => set("minAcreage", v)} />
+            </Field>
+            <Field label="Maximum acreage" hint="only if a range is given">
+              <NumberInput value={p.maxAcreage ?? null} onChange={(v) => set("maxAcreage", v)} />
+            </Field>
+            <Field label="Minimum building sq ft" flagged={flagged("minBuildingSqFt")}>
+              <NumberInput value={p.minBuildingSqFt ?? null} onChange={(v) => set("minBuildingSqFt", v)} />
+            </Field>
+            <Field label="Maximum building sq ft" hint="only if a range is given">
+              <NumberInput value={p.maxBuildingSqFt ?? null} onChange={(v) => set("maxBuildingSqFt", v)} />
+            </Field>
+          </div>
           <Field label="Building size / needs">
             <Area value={p.buildingSizeNeeds ?? ""} onChange={(v) => set("buildingSizeNeeds", v)} />
           </Field>
@@ -623,135 +555,22 @@ export default function ReviewForm({
 
       <Section
         title="Utility requirements"
-        description="Normalized values with raw values retained. Electricity → MW, water/wastewater → thousand gal/day, gas → thousand ft³/day."
+        description="Captured verbatim as written in the RFI — figures, units and ramp-up as stated. No unit conversion."
       >
-        {(p.utilities ?? []).map((u, ui) => (
-          <div key={ui} className="rounded-md border border-gray-200 p-3">
-            <div className="flex items-center gap-2">
-              <Select
-                value={u.type}
-                onChange={(v) => updateUtil(ui, { type: v as Util["type"] })}
-                options={UTILITY_OPTIONS}
-              />
-              {u.flagged && (
-                <span className="badge bg-amber-100 text-amber-800">verify</span>
-              )}
-              <button
-                className="btn-danger ml-auto"
-                onClick={() =>
-                  setP((cur) => ({
-                    ...cur,
-                    utilities: cur.utilities.filter((_, x) => x !== ui),
-                  }))
-                }
-              >
-                Remove
-              </button>
-            </div>
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-              <Field label="Normalized value">
-                <NumberInput value={u.normalizedValue ?? null} onChange={(v) => updateUtil(ui, { normalizedValue: v })} />
-              </Field>
-              <Field label="Normalized unit">
-                <Text value={u.normalizedUnit ?? ""} onChange={(v) => updateUtil(ui, { normalizedUnit: v })} />
-              </Field>
-              <Field label="Raw value (verbatim)">
-                <Text value={u.rawValue ?? ""} onChange={(v) => updateUtil(ui, { rawValue: v })} />
-              </Field>
-            </div>
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Field label="Purpose">
-                <Text value={u.purpose ?? ""} onChange={(v) => updateUtil(ui, { purpose: v })} />
-              </Field>
-              <Field label="Alternatives">
-                <Text value={u.alternatives ?? ""} onChange={(v) => updateUtil(ui, { alternatives: v })} />
-              </Field>
-            </div>
-            {u.assumptionNote && (
-              <p className="mt-2 text-xs text-amber-700">
-                Assumption: {u.assumptionNote}
-              </p>
-            )}
-
-            {/* datapoints */}
-            <div className="mt-3">
-              <span className="label">Datapoints (time-phased)</span>
-              {(u.datapoints ?? []).map((dp, di) => (
-                <div
-                  key={di}
-                  className="mt-1 grid grid-cols-2 gap-2 md:grid-cols-5"
-                >
-                  <input
-                    className="input"
-                    placeholder="kind"
-                    value={dp.kind ?? ""}
-                    onChange={(e) => updateDatapoint(ui, di, { kind: e.target.value })}
-                  />
-                  <input
-                    type="number"
-                    className="input"
-                    placeholder="value"
-                    value={dp.value ?? ""}
-                    onChange={(e) =>
-                      updateDatapoint(ui, di, {
-                        value: e.target.value === "" ? null : Number(e.target.value),
-                      })
-                    }
-                  />
-                  <input
-                    className="input"
-                    placeholder="unit"
-                    value={dp.unit ?? ""}
-                    onChange={(e) => updateDatapoint(ui, di, { unit: e.target.value })}
-                  />
-                  <input
-                    type="date"
-                    className="input"
-                    value={d(dp.date)}
-                    onChange={(e) => updateDatapoint(ui, di, { date: e.target.value || null })}
-                  />
-                  <button
-                    className="btn-danger"
-                    onClick={() =>
-                      updateUtil(ui, {
-                        datapoints: u.datapoints.filter((_, x) => x !== di),
-                      })
-                    }
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-              <button
-                className="btn-secondary mt-2"
-                onClick={() =>
-                  updateUtil(ui, {
-                    datapoints: [
-                      ...u.datapoints,
-                      { kind: "", label: null, value: null, unit: u.normalizedUnit ?? "", date: null, rawValue: null, flagged: false, assumptionNote: null },
-                    ],
-                  })
-                }
-              >
-                + Add datapoint
-              </button>
-            </div>
-          </div>
-        ))}
-        <button
-          className="btn-secondary"
-          onClick={() =>
-            setP((cur) => ({
-              ...cur,
-              utilities: [
-                ...cur.utilities,
-                { type: "ELECTRICITY", normalizedValue: null, normalizedUnit: "MW", rawValue: null, purpose: null, alternatives: null, notes: null, flagged: false, assumptionNote: null, datapoints: [] },
-              ],
-            }))
-          }
-        >
-          + Add utility
-        </button>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field label="Electricity">
+            <Area value={p.electricityNeeds ?? ""} onChange={(v) => set("electricityNeeds", v)} rows={3} />
+          </Field>
+          <Field label="Water">
+            <Area value={p.waterNeeds ?? ""} onChange={(v) => set("waterNeeds", v)} rows={3} />
+          </Field>
+          <Field label="Wastewater">
+            <Area value={p.wastewaterNeeds ?? ""} onChange={(v) => set("wastewaterNeeds", v)} rows={3} />
+          </Field>
+          <Field label="Gas">
+            <Area value={p.gasNeeds ?? ""} onChange={(v) => set("gasNeeds", v)} rows={3} />
+          </Field>
+        </div>
       </Section>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

@@ -4,17 +4,31 @@ import { useMemo, useState } from "react";
 import { PIPELINE_STAGES } from "@/lib/projects/schema";
 import {
   STAGE_LABELS,
-  SUBMISSION_STATUS_LABELS,
+  formatCurrency,
   formatDate,
   formatNumber,
 } from "@/lib/format";
+import { NAICS_BY_CODE } from "@/lib/naics";
 import type {
+  CityActivityProject,
   CityActivityReport,
   LeadSourceReport,
   ProviderActivityReport,
   QuarterlyReport,
   SiteVisitReport,
 } from "@/lib/reports/data";
+
+const COUNTY_OPTIONS = [
+  { value: "", label: "All counties" },
+  { value: "HAYS", label: "Hays County" },
+  { value: "CALDWELL", label: "Caldwell County" },
+];
+const SORT_OPTIONS = [
+  { value: "", label: "Default (community order)" },
+  { value: "date", label: "Active date (newest first)" },
+  { value: "status", label: "Status" },
+  { value: "name", label: "Name" },
+];
 
 interface CommunityLite {
   id: string;
@@ -61,6 +75,8 @@ export default function ReportsView({
 
   const [kind, setKind] = useState<ReportKind>("city-activity");
   const [communityId, setCommunityId] = useState("");
+  const [county, setCounty] = useState("");
+  const [sort, setSort] = useState("");
   const [naics, setNaics] = useState("");
   const [stage, setStage] = useState("");
   const [electricProviderId, setElectricProviderId] = useState("");
@@ -86,6 +102,7 @@ export default function ReportsView({
   const query = useMemo(() => {
     const p = new URLSearchParams();
     if (submissionScoped && communityId) p.set("communityId", communityId);
+    if (submissionScoped && county) p.set("county", county);
     if (submissionScoped && electricProviderId)
       p.set("electricProviderId", electricProviderId);
     if (submissionScoped && waterProviderId)
@@ -93,6 +110,7 @@ export default function ReportsView({
     if (kind === "provider-activity") p.set("dimension", dimension);
     if (naics) p.set("naics", naics);
     if (stage) p.set("stage", stage);
+    if (sort) p.set("sort", sort);
     if (quarter) {
       p.set("quarter", quarter);
     } else {
@@ -105,10 +123,12 @@ export default function ReportsView({
     dimension,
     submissionScoped,
     communityId,
+    county,
     electricProviderId,
     waterProviderId,
     naics,
     stage,
+    sort,
     quarter,
     from,
     to,
@@ -209,6 +229,21 @@ export default function ReportsView({
             </select>
           </div>
           <div>
+            <label className="label">County</label>
+            <select
+              className="input"
+              value={county}
+              disabled={!submissionScoped}
+              onChange={(e) => setCounty(e.target.value)}
+            >
+              {COUNTY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="label">Electric provider</label>
             <select
               className="input"
@@ -298,6 +333,20 @@ export default function ReportsView({
               disabled={!!quarter}
               onChange={(e) => setTo(e.target.value)}
             />
+          </div>
+          <div>
+            <label className="label">Sort projects by</label>
+            <select
+              className="input"
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+            >
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         {kind === "lead-source" && (
@@ -436,43 +485,9 @@ function ProviderActivityResult({
                 {g.submissionCount} submission{g.submissionCount === 1 ? "" : "s"}
               </span>
             </div>
-            <div className="mt-2 space-y-3">
+            <div className="mt-3 space-y-3">
               {g.projects.map((p) => (
-                <div key={p.projectId}>
-                  <p className="text-sm font-semibold text-gray-900">
-                    {p.codename}
-                    <span className="ml-2 text-xs font-normal text-gray-500">
-                      {STAGE_LABELS[p.stage] ?? p.stage}
-                      {p.naicsCode ? ` · NAICS ${p.naicsCode}` : ""}
-                    </span>
-                  </p>
-                  <table className="mt-1 w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-gray-400">
-                        <th className="py-1">Site</th>
-                        <th className="py-1">Acreage</th>
-                        <th className="py-1">Submitted</th>
-                        <th className="py-1">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {p.sites.map((s, i) => (
-                        <tr key={i} className="border-t border-gray-100">
-                          <td className="py-1 text-gray-900">{s.siteName}</td>
-                          <td className="py-1 text-gray-600">
-                            {s.acreage != null ? `${s.acreage} ac` : "—"}
-                          </td>
-                          <td className="py-1 text-gray-600">
-                            {formatDate(s.submissionDate)}
-                          </td>
-                          <td className="py-1 text-gray-600">
-                            {SUBMISSION_STATUS_LABELS[s.status] ?? s.status}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <ProjectBlock key={p.projectId} p={p} />
               ))}
             </div>
           </div>
@@ -482,11 +497,62 @@ function ProviderActivityResult({
   );
 }
 
+// NAICS as "code — official description" (never the free-text industry blurb).
+function naicsText(code: string | null): string | null {
+  if (!code) return null;
+  const desc = NAICS_BY_CODE[code];
+  return desc ? `NAICS ${code} — ${desc}` : `NAICS ${code}`;
+}
+
+// One project inside a city/provider report: identity + active date + the
+// capex/jobs/wage figures, then the submitted site names. No acreage, no
+// per-site status, no narrative.
+function ProjectBlock({ p }: { p: CityActivityProject }) {
+  const naics = naicsText(p.naicsCode);
+  return (
+    <div className="rounded-md border border-gray-100 bg-gray-50/40 p-2">
+      <p className="text-sm font-semibold text-gray-900">
+        {p.codename}
+        <span className="ml-2 text-xs font-normal text-gray-500">
+          {STAGE_LABELS[p.stage] ?? p.stage}
+          {p.rfiReceivedDate ? ` · Active ${formatDate(p.rfiReceivedDate)}` : ""}
+        </span>
+      </p>
+      {naics && <p className="text-xs text-gray-500">{naics}</p>}
+      <div className="mt-1 flex flex-wrap gap-x-6 gap-y-0.5 text-xs text-gray-600">
+        <span>
+          Capex:{" "}
+          <span className="font-medium text-gray-900">
+            {p.capexTotal != null ? formatCurrency(p.capexTotal) : "—"}
+          </span>
+        </span>
+        <span>
+          Jobs:{" "}
+          <span className="font-medium text-gray-900">
+            {p.jobs != null ? formatNumber(p.jobs) : "—"}
+          </span>
+        </span>
+        <span>
+          Avg wage:{" "}
+          <span className="font-medium text-gray-900">
+            {p.avgWage != null ? formatCurrency(p.avgWage) : "—"}
+          </span>
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-gray-600">
+        <span className="text-gray-400">Sites: </span>
+        {p.sites.map((s) => s.siteName).join(", ") || "—"}
+      </p>
+    </div>
+  );
+}
+
 function FilterEcho({
   f,
 }: {
   f: {
     community: string;
+    county: string;
     period: string;
     naics: string;
     stage: string;
@@ -496,7 +562,7 @@ function FilterEcho({
 }) {
   return (
     <p className="text-xs text-gray-500">
-      {f.community} · {f.period} · NAICS {f.naics} · Stage {f.stage}
+      {f.community} · {f.county} · {f.period} · NAICS {f.naics} · Stage {f.stage}
       {f.electricProvider ? ` · Electric: ${f.electricProvider}` : ""}
       {f.waterProvider ? ` · Water: ${f.waterProvider}` : ""}
     </p>
@@ -532,43 +598,9 @@ function CityActivityResult({ report }: { report: CityActivityReport }) {
                 {c.submissionCount} submission{c.submissionCount === 1 ? "" : "s"}
               </span>
             </div>
-            <div className="mt-2 space-y-3">
+            <div className="mt-3 space-y-3">
               {c.projects.map((p) => (
-                <div key={p.projectId}>
-                  <p className="text-sm font-semibold text-gray-900">
-                    {p.codename}
-                    <span className="ml-2 text-xs font-normal text-gray-500">
-                      {STAGE_LABELS[p.stage] ?? p.stage}
-                      {p.naicsCode ? ` · NAICS ${p.naicsCode}` : ""}
-                    </span>
-                  </p>
-                  <table className="mt-1 w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-gray-400">
-                        <th className="py-1">Site</th>
-                        <th className="py-1">Acreage</th>
-                        <th className="py-1">Submitted</th>
-                        <th className="py-1">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {p.sites.map((s, i) => (
-                        <tr key={i} className="border-t border-gray-100">
-                          <td className="py-1 text-gray-900">{s.siteName}</td>
-                          <td className="py-1 text-gray-600">
-                            {s.acreage != null ? `${s.acreage} ac` : "—"}
-                          </td>
-                          <td className="py-1 text-gray-600">
-                            {formatDate(s.submissionDate)}
-                          </td>
-                          <td className="py-1 text-gray-600">
-                            {SUBMISSION_STATUS_LABELS[s.status] ?? s.status}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <ProjectBlock key={p.projectId} p={p} />
               ))}
             </div>
           </div>

@@ -306,15 +306,15 @@ export default function DashboardView({
         <div className={stale ? "space-y-4 opacity-60" : "space-y-4"}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Tile
-              label="Win rate (of submitted)"
-              value={percent(rates.winRateOfSubmitted)}
-              hint={`${rates.won} won of ${rates.submitted} submitted`}
+              label="Shortlist rate (of submitted)"
+              value={percent(rates.shortlistRate)}
+              hint={`${rates.shortlisted} of ${rates.submitted} submitted`}
               emphasis
             />
             <Tile
-              label="Win rate (of received)"
-              value={percent(rates.winRateOfReceived)}
-              hint={`${rates.won} won of ${rates.received} RFIs`}
+              label="Site visit rate (of submitted)"
+              value={percent(rates.siteVisitRate)}
+              hint={`${rates.siteVisited} of ${rates.submitted} submitted`}
               emphasis
             />
             <Tile label="RFIs received" value={formatNumber(rates.received)} />
@@ -424,6 +424,34 @@ export default function DashboardView({
           </div>
 
           <Panel
+            title="Projects by status"
+            description="Current pipeline stage of every project in range."
+          >
+            {report.byStatus.every((s) => s.count === 0) ? (
+              <Empty>No projects in this period.</Empty>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={report.byStatus} layout="vertical" margin={{ left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <YAxis
+                    type="category"
+                    dataKey="label"
+                    width={130}
+                    tick={{ fontSize: 10 }}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "rgba(23,76,52,0.06)" }}
+                    formatter={(value) => [String(value), "Projects"]}
+                  />
+                  <Bar dataKey="count" fill={BRAND} radius={[0, 3, 3, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Panel>
+
+          <Panel
             title="Stage progression"
             description="How far each project got. A project that moved backwards and then advanced again is drawn as one clean run along its furthest path."
           >
@@ -455,7 +483,10 @@ export default function DashboardView({
             )}
           </Panel>
 
-          <Panel title="Top industries" description="By NAICS code. Up to eight.">
+          <Panel
+            title="Top industries"
+            description="By 2-digit NAICS sector. Up to eight."
+          >
             {report.byIndustry.length === 0 ? (
               <Empty>No projects in this period.</Empty>
             ) : (

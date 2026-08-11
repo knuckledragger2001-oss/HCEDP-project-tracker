@@ -30,9 +30,11 @@ GENERAL RULES
 - companyLocationRaw: the company's current/home location if stated (e.g. "Chicago, IL", "Illinois", or just "Germany" for a foreign company). Copy it as written — do not guess. Leave null if the RFI keeps the company anonymous or gives no location.
 - Capital investment: capture total/land/building/equipment as plain numbers in USD (e.g. 1600000000, not "$1.6B").
 - avgWage: a single USD number.
-- jobPhases: one entry per phased job figure, with the count and the timeframe exactly as written (e.g. count 75, timeframe "Year One"; count 200, timeframe "3-5 years").
+- jobs: the single HIGHEST total job count the prospect quotes — peak headcount at full build-out. If the figure is phased (e.g. 75 in Year One, 200 by years 3-5), take the largest number (200). Plain integer. Leave null if no job figure is given.
 - minAcreage: minimum site acreage as a plain number.
+- maxAcreage: maximum site acreage, only if the RFI states a range or an upper bound (e.g. "100-250 acres" => minAcreage 100, maxAcreage 250). Null if only a single/minimum figure is given.
 - minBuildingSqFt: minimum building square footage required, as a plain number (e.g. 250000 for 250,000 sq ft). Extract from any statement of building size, floor space, or facility size. Leave null if not stated.
+- maxBuildingSqFt: maximum building square footage, only if the RFI states a range or an upper bound. Null if only a single/minimum figure is given.
 - siteLocationPreferences: array of the stated preferences (e.g. ["Industrial Park", "Freestanding Site", "Incubator Site"]).
 - existingBuildingPreference: whether the company wants an existing building — YES if an existing building is required/wanted, NO if they want land/greenfield only or explicitly not an existing building, PREFERRED if an existing building is preferred but not required. Null if not stated.
 - railPreference: whether rail service is required — YES / NO / PREFERRED using the same convention. Null if not stated.
@@ -41,18 +43,18 @@ GENERAL RULES
 - qualitativeNotes: capture soft/qualitative needs that do not fit a structured field (e.g. "supportive educational ecosystem"), each as { label, content }.
 - Dates: output ISO 8601 (YYYY-MM-DD). Map the email's sent/received date to rfiReceivedDate, the submission deadline to responseDueDate, the projected decision date and start-of-production date to their fields. Leave responseSubmittedDate and siteVisitDate null unless explicitly stated (these are usually filled in later by HCEDP).
 
-UTILITY NORMALIZATION (critical — follow exactly)
-For every utility, store the normalized value, the original raw value as written (rawValue), and time-phasing as datapoints. When a figure is given in more than one unit, prefer the most directly stated one and note the choice in assumptionNote.
-- ELECTRICITY: normalize to Megawatts (MW). Capture day-one demand (kind "day-one") with its date, peak demand (kind "peak") with its date, and any load ramp as dated datapoints (kind "ramp"). Set normalizedValue to the peak MW and normalizedUnit "MW".
-- WATER: normalize to thousands of gallons per day ("thousand gal/day"). If only a monthly figure is given, convert to daily (divide by 30), set flagged=true and explain in assumptionNote. If a daily figure is stated directly, prefer it.
-- WASTEWATER: same unit and handling as water ("thousand gal/day").
-- GAS: natural gas is reported inconsistently — standardize to thousands of cubic feet per day ("thousand ft3/day") and ALWAYS keep the raw value. If only a monthly figure is given, convert (divide by 30) and flag it. Capture stated alternatives (e.g. diesel, battery storage) in alternatives.
-Always keep rawValue verbatim. Whenever you convert or assume a unit, set flagged=true and write a short assumptionNote.
+UTILITIES (capture verbatim — do NOT convert or normalize)
+Record each utility requirement as free text, exactly as stated in the RFI, including units, time-phasing, and any ramp-up as written. Do not convert units, do not compute daily-from-monthly, do not pick a single "peak" number. Just capture what the RFI says so staff read the original figures.
+- electricityNeeds: the electrical demand as written (e.g. "50 MW day-one, ramping to 300 MW by 2030; redundant feeds required").
+- waterNeeds: the water demand as written (e.g. "2 million gallons/day").
+- wastewaterNeeds: the wastewater/sewer needs as written.
+- gasNeeds: the natural-gas needs as written, plus any stated alternatives (diesel, battery storage).
+Leave a field null if that utility isn't mentioned.
 
 PARSE WARNINGS
-Populate parseWarnings with one entry per value you had to assume, convert, or infer, so a human can verify it. Use kind "conversion" for unit conversions, "assumption" for inferred values, and "missing" for important fields you could not find. Each entry: { field, message, kind }.`;
+Populate parseWarnings with one entry per value you had to assume or infer, so a human can verify it. Use kind "assumption" for inferred values and "missing" for important fields you could not find. Each entry: { field, message, kind }.`;
 
-const USER_INSTRUCTION = `Extract the structured RFI record from the pasted email text and any attachments below. Apply the unit-normalization rules exactly and record any assumptions/conversions in parseWarnings.`;
+const USER_INSTRUCTION = `Extract the structured RFI record from the pasted email text and any attachments below. Capture utility figures verbatim (no unit conversion), take the single highest job number, and record any assumptions in parseWarnings.`;
 
 export interface ParseRfiInput {
   emailText: string;

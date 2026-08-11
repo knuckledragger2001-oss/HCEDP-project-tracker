@@ -3,19 +3,34 @@ import type { Prisma } from "@prisma/client";
 import { leadSourceLabel } from "@/lib/format";
 import { describeLocation } from "@/lib/location/normalize";
 
+// County roll-up. A county's activity is every submitted site that carries that
+// county on the Site record itself. County and city are set independently when a
+// site is entered (a site can have both, either, or neither), so reporting rolls
+// up by exactly what was designated — a city is NOT auto-mapped to a county.
+export const COUNTY_LABELS: Record<string, string> = {
+  HAYS: "Hays County",
+  CALDWELL: "Caldwell County",
+};
+
+// How to order projects within a group in the exportable reports.
+export type ReportSort = "date" | "status" | "name";
+
 // Filters shared by the reports. All optional; absent = no constraint.
 export interface ReportFilters {
   communityId?: string | null;
+  county?: string | null; // "HAYS" | "CALDWELL"
   from?: Date | null; // inclusive lower bound on submissionDate
   to?: Date | null; // inclusive upper bound on submissionDate
   naicsCode?: string | null;
   stage?: string | null; // PipelineStage value
   electricProviderId?: string | null;
   waterProviderId?: string | null;
+  sort?: ReportSort | null;
 }
 
 export interface ReportFilterLabels {
   community: string;
+  county: string;
   period: string;
   naics: string;
   stage: string;
@@ -34,6 +49,11 @@ function submissionWhere(f: ReportFilters): Prisma.SubmissionWhereInput {
   }
   const siteWhere: Prisma.SiteWhereInput = {};
   if (f.communityId) siteWhere.communityId = f.communityId;
+  if (f.county) {
+    // Roll up strictly by the site's own county designation — no city→county
+    // inference. Sites are tagged with a county at input when it applies.
+    siteWhere.county = f.county as Prisma.SiteWhereInput["county"];
+  }
   if (f.electricProviderId) siteWhere.electricProviderId = f.electricProviderId;
   if (f.waterProviderId) siteWhere.waterProviderId = f.waterProviderId;
   if (Object.keys(siteWhere).length > 0) where.site = siteWhere;
@@ -60,6 +80,8 @@ export async function describeFilters(
     community = c?.name ?? "Unknown community";
   }
 
+  const county = f.county ? COUNTY_LABELS[f.county] ?? f.county : "All counties";
+
   let period = "All dates";
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
   if (f.from && f.to) period = `${fmt(f.from)} – ${fmt(f.to)}`;
@@ -77,6 +99,7 @@ export async function describeFilters(
 
   return {
     community,
+    county,
     period,
     naics: f.naicsCode ? f.naicsCode : "All",
     stage: f.stage ? f.stage.replace(/_/g, " ") : "All",
@@ -104,7 +127,52 @@ export interface CityActivityProject {
   stage: string;
   naicsCode: string | null;
   industryDescription: string | null;
+  // "Active date" — when we received the RFI (project-level).
+  rfiReceivedDate: string | null;
+  capexTotal: number | null;
+  jobs: number | null;
+  avgWage: number | null;
   sites: CityActivitySite[];
+}
+
+// Order projects within a group per the requested sort (default: codename).
+function sortProjects(projects: CityActivityProject[], sort?: ReportSort | null) {
+  const stageRank = (s: string) => {
+    const i = STAGE_ORDER.indexOf(s);
+    return i === -1 ? STAGE_ORDER.length : i;
+  };
+  const byName = (a: CityActivityProject, b: CityActivityProject) =>
+    a.codename.localeCompare(b.codename);
+  if (sort === "name") return projects.sort(byName);
+  if (sort === "status")
+    return projects.sort(
+      (a, b) => stageRank(a.stage) - stageRank(b.stage) || byName(a, b),
+    );
+  if (sort === "date")
+    return projects.sort((a, b) => {
+      const at = a.rfiReceivedDate ? Date.parse(a.rfiReceivedDate) : 0;
+      const bt = b.rfiReceivedDate ? Date.parse(b.rfiReceivedDate) : 0;
+      return bt - at || byName(a, b); // most recent first
+    });
+  return projects;
+}
+
+// Stage progression order, for the "status" sort.
+const STAGE_ORDER = [
+  "RFI_RECEIVED",
+  "PENDING_INFORMATION",
+  "RFI_SUBMITTED",
+  "SHORTLISTED",
+  "SITE_VISIT",
+  "IN_NEGOTIATIONS",
+  "WON",
+  "LOST",
+  "NO_SUBMISSION",
+];
+
+// Prisma Decimal | null -> number | null.
+function dec(v: { toString(): string } | null | undefined): number | null {
+  return v == null ? null : Number(v.toString());
 }
 export interface CityActivityCommunity {
   communityId: string;
@@ -138,6 +206,11 @@ export async function cityActivityReport(
           stage: true,
           naicsCode: true,
           industryDescription: true,
+          rfiReceivedDate: true,
+          capexTotal: true,
+          jobs: true,
+          avgWage: true,
+          wonSiteId: true,
         },
       },
       site: {
@@ -162,6 +235,15 @@ export async function cityActivityReport(
   >();
 
   for (const s of submissions) {
+    // A won project rolls up under a single community: only its chosen site.
+    if (
+      s.project.stage === "WON" &&
+      s.project.wonSiteId &&
+      s.siteId !== s.project.wonSiteId
+    ) {
+      continue;
+    }
+
     // Sites outside any city's limits have no community — bucket them together.
     const c = s.site.community ?? { id: "__none", order: 9999, name: "Outside city limits" };
     let cEntry = communities.get(c.id);
@@ -184,6 +266,10 @@ export async function cityActivityReport(
         stage: s.project.stage,
         naicsCode: s.project.naicsCode,
         industryDescription: s.project.industryDescription,
+        rfiReceivedDate: s.project.rfiReceivedDate?.toISOString() ?? null,
+        capexTotal: dec(s.project.capexTotal),
+        jobs: s.project.jobs,
+        avgWage: dec(s.project.avgWage),
         sites: [],
       };
       cEntry.projects.set(s.project.id, pEntry);
@@ -204,7 +290,7 @@ export async function cityActivityReport(
       communityName: c.name,
       projectCount: c.projects.size,
       submissionCount: c.submissionCount,
-      projects: [...c.projects.values()],
+      projects: sortProjects([...c.projects.values()], f.sort),
     }));
 
   return {
@@ -256,6 +342,10 @@ export async function providerActivityReport(
           stage: true,
           naicsCode: true,
           industryDescription: true,
+          rfiReceivedDate: true,
+          capexTotal: true,
+          jobs: true,
+          avgWage: true,
         },
       },
       site: {
@@ -296,6 +386,10 @@ export async function providerActivityReport(
         stage: s.project.stage,
         naicsCode: s.project.naicsCode,
         industryDescription: s.project.industryDescription,
+        rfiReceivedDate: s.project.rfiReceivedDate?.toISOString() ?? null,
+        capexTotal: dec(s.project.capexTotal),
+        jobs: s.project.jobs,
+        avgWage: dec(s.project.avgWage),
         sites: [],
       };
       g.projects.set(s.project.id, p);
@@ -541,10 +635,20 @@ export async function siteVisitReport(
 // Parse query-string filters into a typed ReportFilters.
 export function parseFilters(params: URLSearchParams): ReportFilters {
   const communityId = params.get("communityId");
+  const countyRaw = params.get("county");
+  const county =
+    countyRaw && (countyRaw === "HAYS" || countyRaw === "CALDWELL")
+      ? countyRaw
+      : null;
   const naicsCode = params.get("naics");
   const stage = params.get("stage");
   const electricProviderId = params.get("electricProviderId");
   const waterProviderId = params.get("waterProviderId");
+  const sortRaw = params.get("sort");
+  const sort: ReportSort | null =
+    sortRaw === "date" || sortRaw === "status" || sortRaw === "name"
+      ? sortRaw
+      : null;
   const fromStr = params.get("from");
   const toStr = params.get("to");
   const quarter = params.get("quarter"); // format: YYYY-Qn
@@ -569,10 +673,12 @@ export function parseFilters(params: URLSearchParams): ReportFilters {
 
   return {
     communityId: communityId || null,
+    county,
     naicsCode: naicsCode || null,
     stage: stage || null,
     electricProviderId: electricProviderId || null,
     waterProviderId: waterProviderId || null,
+    sort,
     from: from && !isNaN(from.getTime()) ? from : null,
     to: to && !isNaN(to.getTime()) ? to : null,
   };
@@ -632,7 +738,7 @@ export async function leadSourceReport(
       minAcreage: true,
       rfiReceivedDate: true,
       responseSubmittedDate: true,
-      jobPhases: { select: { count: true } },
+      jobs: true,
     },
   });
 
@@ -685,8 +791,7 @@ export async function leadSourceReport(
         a.daysCount += 1;
       }
     }
-    const peak = p.jobPhases.reduce((m, j) => Math.max(m, j.count), 0);
-    a.peakJobs += peak;
+    a.peakJobs += p.jobs ?? 0;
     if (p.minAcreage != null) {
       a.acreageSum += p.minAcreage;
       a.acreageCount += 1;

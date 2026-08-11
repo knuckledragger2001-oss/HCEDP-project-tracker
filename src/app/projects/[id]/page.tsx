@@ -18,7 +18,7 @@ import {
   EditableNotes,
   EditableNoSubmissionReason,
 } from "@/components/project/editable";
-import { formatDate, formatTimestamp } from "@/lib/format";
+import { formatTimestamp } from "@/lib/format";
 import type { PipelineStageValue } from "@/lib/projects/schema";
 
 export const dynamic = "force-dynamic";
@@ -42,10 +42,8 @@ export default async function ProjectDetailPage({
       where: { id, deletedAt: null },
       include: {
         stageHistory: { orderBy: { changedAt: "asc" } },
-        jobPhases: { orderBy: { orderIndex: "asc" } },
         criticalCriteria: { orderBy: { rank: "asc" } },
         qualitativeNotes: true,
-        utilities: { include: { datapoints: { orderBy: { date: "asc" } } } },
         attachments: true,
         siteVisits: { orderBy: { orderIndex: "asc" } },
         submissions: {
@@ -106,6 +104,11 @@ export default async function ProjectDetailPage({
           <StageProgress
             projectId={project.id}
             stage={project.stage as PipelineStageValue}
+            wonSiteId={project.wonSiteId}
+            submittedSites={project.submissions.map((s) => ({
+              id: s.site.id,
+              name: s.site.name,
+            }))}
           />
         </div>
         {project.stage === "NO_SUBMISSION" && (
@@ -146,6 +149,12 @@ export default async function ProjectDetailPage({
                   siteVisits={project.siteVisits.map((v) => ({
                     date: v.visitDate.toISOString(),
                     note: v.note,
+                    siteId: v.siteId,
+                  }))}
+                  submittedSites={project.submissions.map((s) => ({
+                    id: s.site.id,
+                    name: s.site.name,
+                    communityName: s.site.community?.name ?? "Outside city limits",
                   }))}
                 />
               ),
@@ -162,10 +171,7 @@ export default async function ProjectDetailPage({
                   capexEquipment={dec(project.capexEquipment)}
                   avgWage={dec(project.avgWage)}
                   financingNotes={project.financingNotes}
-                  jobPhases={project.jobPhases.map((j) => ({
-                    count: j.count,
-                    timeframe: j.timeframe,
-                  }))}
+                  jobs={project.jobs}
                 />
               ),
             },
@@ -181,7 +187,9 @@ export default async function ProjectDetailPage({
                 <EditableSiteRequirements
                   projectId={project.id}
                   minAcreage={project.minAcreage}
+                  maxAcreage={project.maxAcreage}
                   minBuildingSqFt={project.minBuildingSqFt}
+                  maxBuildingSqFt={project.maxBuildingSqFt}
                   siteLocationPreferences={project.siteLocationPreferences}
                   buildingSizeNeeds={project.buildingSizeNeeds}
                   requiredDeliverables={project.requiredDeliverables}
@@ -196,27 +204,10 @@ export default async function ProjectDetailPage({
               node: (
                 <EditableUtilities
                   projectId={project.id}
-                  utilities={project.utilities.map((u) => ({
-                    type: u.type,
-                    normalizedValue: u.normalizedValue,
-                    normalizedUnit: u.normalizedUnit,
-                    rawValue: u.rawValue,
-                    purpose: u.purpose,
-                    alternatives: u.alternatives,
-                    notes: u.notes,
-                    flagged: u.flagged,
-                    assumptionNote: u.assumptionNote,
-                    datapoints: u.datapoints.map((dp) => ({
-                      kind: dp.kind,
-                      label: dp.label,
-                      value: dp.value,
-                      unit: dp.unit,
-                      date: iso(dp.date),
-                      rawValue: dp.rawValue,
-                      flagged: dp.flagged,
-                      assumptionNote: dp.assumptionNote,
-                    })),
-                  }))}
+                  electricityNeeds={project.electricityNeeds}
+                  waterNeeds={project.waterNeeds}
+                  wastewaterNeeds={project.wastewaterNeeds}
+                  gasNeeds={project.gasNeeds}
                 />
               ),
             },

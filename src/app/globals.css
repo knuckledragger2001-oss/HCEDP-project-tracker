@@ -77,9 +77,11 @@ body {
     @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold;
   }
 
-  /* Top navigation link; gets a brand pill when active. */
+  /* Top navigation link; gets a brand pill when active. whitespace-nowrap keeps
+     multi-word labels (e.g. "New RFI", "Placer Requests") on a single line so
+     grouped nav items stay vertically aligned. */
   .nav-link {
-    @apply rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-brand/5 hover:text-brand;
+    @apply whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-brand/5 hover:text-brand;
   }
   .nav-link-active {
     @apply bg-brand/10 text-brand;

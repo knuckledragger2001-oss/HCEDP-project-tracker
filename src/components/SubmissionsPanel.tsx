@@ -2,11 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  SUBMISSION_STATUS_LABELS,
-  formatDate,
-  toDateInputValue,
-} from "@/lib/format";
+import { formatDate, toDateInputValue } from "@/lib/format";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 
@@ -18,6 +14,7 @@ interface SiteLite {
   id: string;
   name: string;
   communityId: string | null;
+  county: string | null;
   community: { name: string };
 }
 export interface SubmissionLite {
@@ -28,7 +25,13 @@ export interface SubmissionLite {
   site: { id: string; name: string; community: { id: string; name: string } };
 }
 
-const STATUS_OPTIONS = Object.entries(SUBMISSION_STATUS_LABELS);
+// County groupings for sites that fall outside any city's limits, so they can
+// still be submitted and roll up by county in reports.
+const COUNTY_GROUPS: { value: string; label: string }[] = [
+  { value: "HAYS", label: "Hays County" },
+  { value: "CALDWELL", label: "Caldwell County" },
+  { value: "TRAVIS", label: "Travis County" },
+];
 
 export default function SubmissionsPanel({
   projectId,
@@ -60,11 +63,13 @@ export default function SubmissionsPanel({
             id: string;
             name: string;
             communityId: string | null;
+            county: string | null;
             community: { name: string } | null;
           }) => ({
             id: s.id,
             name: s.name,
             communityId: s.communityId,
+            county: s.county ?? null,
             community: { name: s.community?.name ?? "Outside city limits" },
           }),
         );
@@ -81,7 +86,6 @@ export default function SubmissionsPanel({
   const [submissionDate, setSubmissionDate] = useState(
     toDateInputValue(new Date()),
   );
-  const [status, setStatus] = useState("SUBMITTED");
 
   // quick-create site state
   const [newSiteName, setNewSiteName] = useState("");
@@ -116,7 +120,7 @@ export default function SubmissionsPanel({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to create site");
-      const site: SiteLite = json.site;
+      const site: SiteLite = { ...json.site, county: json.site.county ?? null };
       setSites((cur) =>
         [...cur, site].sort((a, b) => a.name.localeCompare(b.name)),
       );
@@ -141,7 +145,12 @@ export default function SubmissionsPanel({
       const res = await fetch("/api/submissions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, siteId, submissionDate, status }),
+        body: JSON.stringify({
+          projectId,
+          siteId,
+          submissionDate,
+          status: "SUBMITTED",
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to add submission");
@@ -153,18 +162,6 @@ export default function SubmissionsPanel({
     } finally {
       setBusy(false);
     }
-  }
-
-  async function updateStatus(id: string, newStatus: string) {
-    setSubmissions((cur) =>
-      cur.map((s) => (s.id === id ? { ...s, status: newStatus } : s)),
-    );
-    await fetch("/api/submissions", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status: newStatus }),
-    });
-    router.refresh();
   }
 
   async function remove(id: string) {
@@ -193,7 +190,7 @@ export default function SubmissionsPanel({
       {/* Add submission */}
       <div className="rounded-md border border-gray-200 p-3">
         <p className="text-sm font-semibold text-gray-800">Submit a site</p>
-        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-4">
+        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
           <select
             className="input md:col-span-2"
             value={siteId}
@@ -213,6 +210,36 @@ export default function SubmissionsPanel({
                 </optgroup>
               );
             })}
+            {/* County-only sites (no city) grouped by county. */}
+            {COUNTY_GROUPS.map((g) => {
+              const cs = sites.filter(
+                (s) => !s.communityId && s.county === g.value,
+              );
+              if (cs.length === 0) return null;
+              return (
+                <optgroup key={g.value} label={g.label}>
+                  {cs.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
+            {/* Anything with neither a city nor a county. */}
+            {(() => {
+              const cs = sites.filter((s) => !s.communityId && !s.county);
+              if (cs.length === 0) return null;
+              return (
+                <optgroup label="Outside city limits">
+                  {cs.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })()}
           </select>
           <input
             type="date"
@@ -220,17 +247,6 @@ export default function SubmissionsPanel({
             value={submissionDate}
             onChange={(e) => setSubmissionDate(e.target.value)}
           />
-          <select
-            className="input"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-          >
-            {STATUS_OPTIONS.map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
         </div>
         <div className="mt-2 flex justify-end">
           <button className="btn-primary" onClick={addSubmission} disabled={busy}>
@@ -281,7 +297,9 @@ export default function SubmissionsPanel({
         </details>
       </div>
 
-      {/* Existing submissions grouped by community */}
+      {/* Existing submissions grouped by community. Per-site status is no longer
+          tracked here — site visits are recorded under Source & dates and the
+          project's own stage drives shortlist/site-visit/won reporting. */}
       {submissions.length === 0 ? (
         <p className="text-sm text-gray-400">No sites submitted yet.</p>
       ) : (
@@ -305,25 +323,12 @@ export default function SubmissionsPanel({
                         {formatDate(s.submissionDate)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <select
-                        className="rounded border border-gray-200 px-1 py-1 text-xs"
-                        value={s.status}
-                        onChange={(e) => updateStatus(s.id, e.target.value)}
-                      >
-                        {STATUS_OPTIONS.map(([v, l]) => (
-                          <option key={v} value={v}>
-                            {l}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        className="text-xs text-red-500 hover:underline"
-                        onClick={() => remove(s.id)}
-                      >
-                        remove
-                      </button>
-                    </div>
+                    <button
+                      className="text-xs text-red-500 hover:underline"
+                      onClick={() => remove(s.id)}
+                    >
+                      remove
+                    </button>
                   </div>
                 ))}
               </div>

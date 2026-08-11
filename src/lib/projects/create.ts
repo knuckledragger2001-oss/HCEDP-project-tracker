@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import type { SaveProjectInput } from "./schema";
 import { normalizeLocation } from "@/lib/location/normalize";
+import { toNaicsSector } from "@/lib/naics";
 
 function toDate(value: string | null | undefined): Date | null {
   if (!value) return null;
@@ -42,6 +43,7 @@ export async function createProjectFromProposal(
     companyCountry: location.country,
 
     naicsCode: input.naicsCode ?? null,
+    naicsSector: toNaicsSector(input.naicsCode),
     industryDescription: input.industryDescription ?? null,
     narrative: input.narrative ?? null,
     projectType: input.projectType ?? null,
@@ -53,14 +55,28 @@ export async function createProjectFromProposal(
     financingNotes: input.financingNotes ?? null,
     hasFunding: input.hasFunding ?? null,
 
+    // Single peak job count. Fall back to the max of any legacy jobPhases a
+    // proposal may still carry (new proposals send `jobs` directly).
+    jobs:
+      input.jobs ??
+      (input.jobPhases && input.jobPhases.length > 0
+        ? Math.max(...input.jobPhases.map((j) => j.count))
+        : null),
     avgWage: input.avgWage ?? null,
 
     minAcreage: input.minAcreage ?? null,
+    maxAcreage: input.maxAcreage ?? null,
     minBuildingSqFt: input.minBuildingSqFt ?? null,
+    maxBuildingSqFt: input.maxBuildingSqFt ?? null,
     buildingSizeNeeds: input.buildingSizeNeeds ?? null,
     siteLocationPreferences: input.siteLocationPreferences ?? [],
     existingBuildingPreference: input.existingBuildingPreference ?? null,
     railPreference: input.railPreference ?? null,
+
+    electricityNeeds: input.electricityNeeds ?? null,
+    waterNeeds: input.waterNeeds ?? null,
+    wastewaterNeeds: input.wastewaterNeeds ?? null,
+    gasNeeds: input.gasNeeds ?? null,
 
     environmentalNotes: input.environmentalNotes ?? null,
     transportationNotes: input.transportationNotes ?? null,

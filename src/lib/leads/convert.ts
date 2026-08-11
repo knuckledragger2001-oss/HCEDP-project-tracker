@@ -12,11 +12,6 @@ export class LeadConversionError extends Error {
   }
 }
 
-// Timeframe recorded on the job phase seeded from Lead.estimatedJobs. Leads
-// carry a single unphased headcount guess; the RFI is what later breaks jobs
-// into real phases.
-const ESTIMATED_JOBS_TIMEFRAME = "Estimated at lead stage";
-
 // Convert a qualified lead into a full project.
 //
 // The lead row is kept (stage CONVERTED, pointing at the new project) rather
@@ -68,10 +63,7 @@ export async function convertLeadToProject(leadId: string) {
     minAcreage: lead.minAcreage,
     minBuildingSqFt: lead.minBuildingSqFt,
 
-    jobPhases:
-      lead.estimatedJobs && lead.estimatedJobs > 0
-        ? [{ count: lead.estimatedJobs, timeframe: ESTIMATED_JOBS_TIMEFRAME }]
-        : [],
+    jobs: lead.estimatedJobs ?? null,
   });
 
   return prisma.$transaction(async (tx) => {

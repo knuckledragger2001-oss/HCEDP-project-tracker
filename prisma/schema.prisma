@@ -179,6 +179,11 @@ model Project {
 
   // Industry / narrative
   naicsCode           String?
+  // Derived 2-digit NAICS sector key for roll-up reporting (e.g. "31-33" for a
+  // manufacturing code like 311111). Range sectors (31-33, 44-45, 48-49) collapse
+  // to a single canonical key. Stored on write so reports/dashboards can group by
+  // sector without re-deriving. See toNaicsSector() in src/lib/naics.ts.
+  naicsSector         String?
   industryDescription String?
   narrative           String? @db.Text
   projectType         String? // expansion, new location, build-to-suit, ...
@@ -191,18 +196,32 @@ model Project {
   financingNotes String?  @db.Text
   hasFunding     Boolean?
 
-  // Jobs
+  // Jobs. `jobs` is the single highest job count quoted in the RFI (RFI ingestion
+  // no longer captures a phased breakdown — see jobPhases, retained for legacy
+  // rows). Reports and the dashboard use `jobs`.
+  jobs    Int?
   avgWage Decimal? @db.Decimal(14, 2)
 
-  // Site requirements
-  minAcreage              Float?
-  minBuildingSqFt         Float?
-  buildingSizeNeeds       String?  @db.Text
-  siteLocationPreferences String[] // e.g. Industrial Park, Freestanding Site, Incubator
+  // Site requirements. Min is what reports use; max is captured when the RFI
+  // states a range, for reference on the project page only.
+  minAcreage                 Float?
+  maxAcreage                 Float?
+  minBuildingSqFt            Float?
+  maxBuildingSqFt            Float?
+  buildingSizeNeeds          String?                @db.Text
+  siteLocationPreferences    String[] // e.g. Industrial Park, Freestanding Site, Incubator
   // Whether the company wants an existing building and whether rail service is
   // required (Yes / No / Preferred). Null = not specified in the RFI.
   existingBuildingPreference RequirementPreference?
   railPreference             RequirementPreference?
+
+  // Utility requirements, captured verbatim as free text (one box per utility).
+  // Replaces the normalized UtilityRequirement/UtilityDatapoint pipeline, which is
+  // retained for historical rows but no longer written or shown.
+  electricityNeeds String? @db.Text
+  waterNeeds       String? @db.Text
+  wastewaterNeeds  String? @db.Text
+  gasNeeds         String? @db.Text
 
   // Notes
   environmentalNotes   String? @db.Text
@@ -219,6 +238,12 @@ model Project {
   siteVisitDate         DateTime?
   projectedDecisionDate DateTime?
   productionStartDate   DateTime?
+
+  // The single site chosen when this project was Won. Set via a prompt when the
+  // project is moved to the WON stage; lets a won project roll up under exactly
+  // one community in reports rather than every community we submitted a site in.
+  wonSiteId String?
+  wonSite   Site?   @relation("ProjectWonSite", fields: [wonSiteId], references: [id], onDelete: SetNull)
 
   // Original intake content
   rawEmailText String? @db.Text
@@ -255,11 +280,13 @@ model Project {
 
   @@index([stage])
   @@index([naicsCode])
+  @@index([naicsSector])
   @@index([rfiReceivedDate])
   @@index([archivedAt])
   @@index([deletedAt])
   @@index([companyState])
   @@index([companyCountry])
+  @@index([wonSiteId])
 }
 
 // One recorded site visit for a project. A project can have several; each carries
@@ -269,12 +296,17 @@ model SiteVisit {
   id         String   @id @default(cuid())
   projectId  String
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // The submitted site this visit was to. Chosen from the project's submissions.
+  // Optional for legacy rows created before per-site visit tracking.
+  siteId     String?
+  site       Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
   visitDate  DateTime
   note       String?  @db.Text
   orderIndex Int      @default(0)
   createdAt  DateTime @default(now())
 
   @@index([projectId])
+  @@index([siteId])
   @@index([visitDate])
 }
 
@@ -494,7 +526,7 @@ model UtilityProvider {
 
 // A real estate site we can submit. Created manually through the UI.
 model Site {
-  id          String    @id @default(cuid())
+  id          String     @id @default(cuid())
   name        String
   // Community is optional: some sites fall outside any city's limits. Such sites
   // are grouped under "Outside city limits" in the UI and reports.
@@ -533,7 +565,10 @@ model Site {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  submissions Submission[]
+  submissions    Submission[]
+  siteVisits     SiteVisit[]
+  // Projects for which this site was the chosen "won" site.
+  wonForProjects Project[]    @relation("ProjectWonSite")
 
   @@index([communityId])
   @@index([deletedAt])
@@ -574,17 +609,17 @@ model Submission {
 // stored together in passwordHash). General users have full app access except
 // user management; admins additionally manage users.
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique // stored lowercased
-  name         String?
-  passwordHash String
-  role         UserRole  @default(USER)
+  id                String       @id @default(cuid())
+  email             String       @unique // stored lowercased
+  name              String?
+  passwordHash      String
+  role              UserRole     @default(USER)
   // Set only for PARTNER users: the single city this external login is scoped to.
   // Required (in the API, not the DB) when role = PARTNER; always null for
   // internal ADMIN/USER logins.
-  partnerCity  PartnerCity?
+  partnerCity       PartnerCity?
   // When set, the user can no longer log in and existing sessions are rejected.
-  disabledAt   DateTime?
+  disabledAt        DateTime?
   // Version string of the most recent changelog entry this user has acknowledged
   // (see src/lib/changelog.ts). Null = has never dismissed the "What's new"
   // dialog, so they are shown every entry on their next visit. New users are
@@ -595,10 +630,10 @@ model User {
   // at sign-in, but the row is preserved so an accidental delete can be undone
   // from the toast that appears immediately after. Note: the email stays
   // reserved by the unique index while the row lingers soft-deleted.
-  deletedAt    DateTime?
-  lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  deletedAt         DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   sessions Session[]
 
@@ -622,7 +657,7 @@ model User {
 // RFI/site machinery. External partners only ever see rows matching their own
 // city; internal staff see the whole queue on /placer.
 model PlacerRequest {
-  id   String @id @default(cuid())
+  id   String      @id @default(cuid())
   // Which partner city this belongs to — stamped from the submitter's
   // User.partnerCity at creation, never chosen by hand, so a city can only ever
   // create requests for itself.
@@ -649,15 +684,15 @@ model PlacerRequest {
   neededByDate DateTime?
 
   // Internal fulfillment tracking.
-  status       PlacerRequestStatus @default(SUBMITTED)
-  assignedToId String?
-  assignedTo   User?               @relation("PlacerAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  status        PlacerRequestStatus @default(SUBMITTED)
+  assignedToId  String?
+  assignedTo    User?               @relation("PlacerAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
   // Staff-only working notes — never shown to the partner.
-  internalNotes String? @db.Text
+  internalNotes String?             @db.Text
   // Link to / summary of the delivered report. Shown to the partner once the
   // request is COMPLETED.
-  resultNote  String?   @db.Text
-  completedAt DateTime?
+  resultNote    String?             @db.Text
+  completedAt   DateTime?
 
   // Soft delete with the same restore-from-toast contract as Project/Lead/Site.
   deletedAt DateTime?

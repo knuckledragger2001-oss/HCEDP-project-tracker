@@ -7,7 +7,9 @@ import {
   type SiteVisitReport,
   type ReportFilterLabels,
 } from "@/lib/reports/data";
-import { STAGE_LABELS, SUBMISSION_STATUS_LABELS } from "@/lib/format";
+import { STAGE_LABELS } from "@/lib/format";
+import { NAICS_BY_CODE } from "@/lib/naics";
+import type { CityActivityProject } from "@/lib/reports/data";
 
 const BRAND = "FF2F6B4F";
 
@@ -19,10 +21,39 @@ function writeFilterBlock(
   ws.addRow([title]);
   ws.getRow(1).font = { bold: true, size: 14 };
   ws.addRow([`Community: ${filters.community}`]);
+  ws.addRow([`County: ${filters.county}`]);
   ws.addRow([`Period: ${filters.period}`]);
   ws.addRow([`NAICS: ${filters.naics}`]);
   ws.addRow([`Stage: ${filters.stage}`]);
   ws.addRow([]);
+}
+
+// Shared project columns for the city/provider sheets: no acreage, no per-site
+// status, no free-text industry. NAICS shows the official description.
+const PROJECT_HEADERS = [
+  "Stage",
+  "Active date",
+  "NAICS",
+  "NAICS description",
+  "Capex",
+  "Jobs",
+  "Avg wage",
+  "Site",
+];
+function projectSiteCells(
+  p: CityActivityProject,
+  siteName: string,
+): (string | number | Date)[] {
+  return [
+    STAGE_LABELS[p.stage] ?? p.stage,
+    p.rfiReceivedDate ? new Date(p.rfiReceivedDate) : "",
+    p.naicsCode ?? "",
+    p.naicsCode ? NAICS_BY_CODE[p.naicsCode] ?? "" : "",
+    p.capexTotal ?? "",
+    p.jobs ?? "",
+    p.avgWage ?? "",
+    siteName,
+  ];
 }
 
 function styleHeader(row: ExcelJS.Row) {
@@ -45,18 +76,7 @@ export async function cityActivityXlsx(
 
   writeFilterBlock(ws, "City Activity Report", report.filters);
 
-  const headerRow = ws.addRow([
-    "Community",
-    "Project",
-    "Stage",
-    "NAICS",
-    "Industry",
-    "Site",
-    "Acreage",
-    "Submitted",
-    "Status",
-    "Outcome",
-  ]);
+  const headerRow = ws.addRow(["Community", "Project", ...PROJECT_HEADERS]);
   styleHeader(headerRow);
 
   for (const c of report.communities) {
@@ -65,14 +85,7 @@ export async function cityActivityXlsx(
         ws.addRow([
           c.communityName,
           p.codename,
-          STAGE_LABELS[p.stage] ?? p.stage,
-          p.naicsCode ?? "",
-          p.industryDescription ?? "",
-          s.siteName,
-          s.acreage ?? "",
-          new Date(s.submissionDate),
-          SUBMISSION_STATUS_LABELS[s.status] ?? s.status,
-          s.outcomeNote ?? "",
+          ...projectSiteCells(p, s.siteName),
         ]);
       }
     }
@@ -104,32 +117,14 @@ export async function providerActivityXlsx(
   const headerRow = ws.addRow([
     `${dimLabel} Provider`,
     "Project",
-    "Stage",
-    "NAICS",
-    "Industry",
-    "Site",
-    "Acreage",
-    "Submitted",
-    "Status",
-    "Outcome",
+    ...PROJECT_HEADERS,
   ]);
   styleHeader(headerRow);
 
   for (const g of report.groups) {
     for (const p of g.projects) {
       for (const s of p.sites) {
-        ws.addRow([
-          g.providerName,
-          p.codename,
-          STAGE_LABELS[p.stage] ?? p.stage,
-          p.naicsCode ?? "",
-          p.industryDescription ?? "",
-          s.siteName,
-          s.acreage ?? "",
-          new Date(s.submissionDate),
-          SUBMISSION_STATUS_LABELS[s.status] ?? s.status,
-          s.outcomeNote ?? "",
-        ]);
+        ws.addRow([g.providerName, p.codename, ...projectSiteCells(p, s.siteName)]);
       }
     }
   }

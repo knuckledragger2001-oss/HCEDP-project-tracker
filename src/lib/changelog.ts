@@ -63,17 +63,17 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: "2026.08.18-2",
     date: "2026-08-18",
-    title: "Archive completed tasks to the CRM",
+    title: "Archive completed Placer AI requests to the CRM",
     items: [
       {
         tag: "new",
         text:
-          "A completed task now has an \"Archive to CRM\" button. It opens a new email in Outlook addressed to the contact you were corresponding with, BCC's the CRM's archive address so it's logged automatically, and CC's your coverage partner. Fill in the contact once and it's remembered for next time — no more retyping the same handful of requestors' emails.",
+          "A completed Placer AI request now has an \"Archive to CRM\" button — on its card in the queue, and on the request page. It opens a new email in Outlook addressed to the city contact, BCC's the CRM's archive address so it's logged automatically, and CC's your coverage partner. Fill in the contact once and it's remembered for next time — no more retyping the same handful of requestors' emails. When a partner submitted the request themselves, their contact info fills in automatically.",
       },
       {
         tag: "improved",
         text:
-          "An admin can now set each staff member's \"Auto-CC partner\" from the Users page — whoever should be CC'd when that person archives a task to the CRM.",
+          "An admin can now set each staff member's \"Auto-CC partner\" from the Users page — whoever should be CC'd when that person archives a request to the CRM.",
       },
     ],
   },

@@ -351,3 +351,18 @@ export const UpdateSeriesSchema = z.object({
   purpose: optionalText,
 });
 export type UpdateSeriesInput = z.infer<typeof UpdateSeriesSchema>;
+
+// --- CRM archive -------------------------------------------------------------
+
+// A simple, forgiving email check — this only gates what we'll put in a mailto
+// link, not anything transactional, so it doesn't need to be exhaustive.
+const emailField = z.string().trim().toLowerCase().email("Enter a valid email address.");
+
+// Body accepted by POST /api/placer-requests/[id]/archive. Only valid once the
+// request is COMPLETED (enforced by the route); records who the correspondence
+// was archived to and remembers the contact for next time (see CrmContact).
+export const ArchiveRequestSchema = z.object({
+  contactName: z.string().trim().min(1, "Who is this correspondence with?"),
+  contactEmail: emailField,
+});
+export type ArchiveRequestInput = z.infer<typeof ArchiveRequestSchema>;

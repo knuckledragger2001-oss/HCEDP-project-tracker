@@ -15,7 +15,9 @@ import {
 } from "@dnd-kit/core";
 import { useToast } from "@/components/ui/Toast";
 import AddRequestDialog from "./AddRequestDialog";
+import ArchiveRequestDialog, { type CrmContact } from "./ArchiveRequestDialog";
 import { formatDate } from "@/lib/format";
+import { ArchiveIcon } from "@/components/ui/icons";
 import {
   REQUEST_STATUSES,
   REQUEST_STATUS_LABELS,
@@ -36,11 +38,16 @@ export interface QueueRequest {
   dateRangeStart: string | null;
   dateRangeEnd: string | null;
   timeframeNote: string | null;
+  purpose: string | null;
   status: RequestStatusValue;
   assignedToId: string | null;
   submittedByName: string;
+  /** Strong "Archive to CRM" contact default when a partner login submitted this. */
+  suggestedContact: CrmContact | null;
   neededByDate: string | null;
   createdAt: string;
+  archivedAt: string | null;
+  archiveContactName: string | null;
 }
 
 export interface StaffOption {
@@ -67,10 +74,12 @@ function Card({
   request,
   staff,
   onAssign,
+  onArchive,
 }: {
   request: QueueRequest;
   staff: StaffOption[];
   onAssign: (id: string, assignedToId: string) => void;
+  onArchive: (request: QueueRequest) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: request.id,
@@ -142,6 +151,22 @@ function Card({
           </option>
         ))}
       </select>
+      {request.status === "COMPLETED" &&
+        (request.archivedAt ? (
+          <p className="mt-1.5 truncate text-[10px] text-brand" title={request.archiveContactName ?? undefined}>
+            Archived to CRM{request.archiveContactName ? ` · ${request.archiveContactName}` : ""}
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onArchive(request)}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="btn-secondary mt-1.5 h-7 w-full justify-center py-0.5 text-[11px]"
+            title="Email this correspondence to the CRM archive"
+          >
+            <ArchiveIcon className="h-3 w-3" /> Archive to CRM
+          </button>
+        ))}
     </div>
   );
 }
@@ -152,12 +177,14 @@ function Column({
   requests,
   staff,
   onAssign,
+  onArchive,
 }: {
   status: RequestStatusValue;
   label: string;
   requests: QueueRequest[];
   staff: StaffOption[];
   onAssign: (id: string, assignedToId: string) => void;
+  onArchive: (request: QueueRequest) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
@@ -181,7 +208,7 @@ function Column({
         }`}
       >
         {requests.map((r) => (
-          <Card key={r.id} request={r} staff={staff} onAssign={onAssign} />
+          <Card key={r.id} request={r} staff={staff} onAssign={onAssign} onArchive={onArchive} />
         ))}
         {requests.length === 0 && (
           <p className="px-1 py-3 text-center text-[11px] text-muted-2">Empty</p>
@@ -194,9 +221,13 @@ function Column({
 export default function PlacerBoard({
   initialRequests,
   staff,
+  contacts,
+  defaultCcEmail,
 }: {
   initialRequests: QueueRequest[];
   staff: StaffOption[];
+  contacts: CrmContact[];
+  defaultCcEmail: string | null;
 }) {
   const toast = useToast();
   const [requests, setRequests] = useState(initialRequests);
@@ -204,6 +235,8 @@ export default function PlacerBoard({
   const [query, setQuery] = useState("");
   const [cityFilter, setCityFilter] = useState<"all" | PartnerCityValue>("all");
   const [addOpen, setAddOpen] = useState(false);
+  const [archiving, setArchiving] = useState<QueueRequest | null>(null);
+  const [contactList, setContactList] = useState(contacts);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
@@ -359,6 +392,7 @@ export default function PlacerBoard({
               requests={visible.filter((r) => r.status === s.value)}
               staff={staff}
               onAssign={assign}
+              onArchive={setArchiving}
             />
           ))}
         </div>
@@ -377,6 +411,27 @@ export default function PlacerBoard({
 
       {addOpen && (
         <AddRequestDialog onClose={() => setAddOpen(false)} onCreated={onCreated} />
+      )}
+
+      {archiving && (
+        <ArchiveRequestDialog
+          request={{ id: archiving.id, placeName: archiving.placeName, purpose: archiving.purpose }}
+          contacts={contactList}
+          defaultCcEmail={defaultCcEmail}
+          suggestedContact={archiving.suggestedContact}
+          onClose={() => setArchiving(null)}
+          onArchived={(updated, contact) => {
+            setRequests((cur) =>
+              cur.map((r) =>
+                r.id === updated.id
+                  ? { ...r, archivedAt: updated.archivedAt, archiveContactName: updated.archiveContactName }
+                  : r,
+              ),
+            );
+            setContactList((cur) => [contact, ...cur.filter((c) => c.email !== contact.email)]);
+            setArchiving(null);
+          }}
+        />
       )}
     </div>
   );

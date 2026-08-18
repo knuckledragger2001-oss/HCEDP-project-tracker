@@ -5,6 +5,7 @@ import PlacerBoard, {
   type QueueRequest,
   type StaffOption,
 } from "@/components/placer/PlacerBoard";
+import type { CrmContact } from "@/components/placer/ArchiveRequestDialog";
 import type { PartnerCityValue, RequestStatusValue } from "@/lib/placer/schema";
 
 export const dynamic = "force-dynamic";
@@ -13,12 +14,16 @@ export const metadata: Metadata = {
   title: "Placer Requests — HCEDP Projects Tracker",
 };
 
+// How many remembered CRM contacts to offer as autofill suggestions. The
+// handful of regular requestors easily fits; this is just a sane ceiling.
+const CONTACT_SUGGESTION_LIMIT = 25;
+
 // Internal fulfillment queue: every partner city's Placer AI requests, as a
 // drag-between-status board. Internal staff only.
 export default async function PlacerQueuePage() {
-  await requireInternal();
+  const user = await requireInternal();
 
-  const [requests, staff] = await Promise.all([
+  const [requests, staff, contacts, me] = await Promise.all([
     prisma.placerRequest.findMany({
       // PLANNED requests live on the planning calendar (/placer/calendar), not
       // the fulfillment board — they haven't reached the queue yet.
@@ -33,17 +38,29 @@ export default async function PlacerQueuePage() {
         dateRangeStart: true,
         dateRangeEnd: true,
         timeframeNote: true,
+        purpose: true,
         status: true,
         assignedToId: true,
         neededByDate: true,
         createdAt: true,
-        submittedBy: { select: { name: true, email: true } },
+        archivedAt: true,
+        archiveContactName: true,
+        submittedBy: { select: { name: true, email: true, role: true } },
       },
     }),
     prisma.user.findMany({
       where: { deletedAt: null, disabledAt: null, role: { in: ["ADMIN", "USER"] } },
       orderBy: [{ name: "asc" }, { email: "asc" }],
       select: { id: true, name: true, email: true },
+    }),
+    prisma.crmContact.findMany({
+      orderBy: { lastUsedAt: "desc" },
+      take: CONTACT_SUGGESTION_LIMIT,
+      select: { name: true, email: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { ccPartner: { select: { email: true } } },
     }),
   ]);
 
@@ -56,17 +73,29 @@ export default async function PlacerQueuePage() {
     dateRangeStart: r.dateRangeStart?.toISOString() ?? null,
     dateRangeEnd: r.dateRangeEnd?.toISOString() ?? null,
     timeframeNote: r.timeframeNote,
+    purpose: r.purpose,
     status: r.status as RequestStatusValue,
     assignedToId: r.assignedToId,
     submittedByName: r.submittedBy?.name ?? r.submittedBy?.email ?? "—",
+    // A partner login submitted this themselves → their own login is the real
+    // city contact, so it's a strong "Archive to CRM" default (staff-logged
+    // requests aren't, since the "submitter" there is just whoever typed it in).
+    suggestedContact:
+      r.submittedBy?.role === "PARTNER" && r.submittedBy.email
+        ? { name: r.submittedBy.name ?? r.submittedBy.email, email: r.submittedBy.email }
+        : null,
     neededByDate: r.neededByDate?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
+    archivedAt: r.archivedAt?.toISOString() ?? null,
+    archiveContactName: r.archiveContactName,
   }));
 
   const staffOptions: StaffOption[] = staff.map((s) => ({
     id: s.id,
     label: s.name ?? s.email,
   }));
+
+  const contactList: CrmContact[] = contacts;
 
   const openCount = data.filter(
     (r) => r.status !== "COMPLETED" && r.status !== "DECLINED",
@@ -85,7 +114,12 @@ export default async function PlacerQueuePage() {
           </p>
         </div>
       </div>
-      <PlacerBoard initialRequests={data} staff={staffOptions} />
+      <PlacerBoard
+        initialRequests={data}
+        staff={staffOptions}
+        contacts={contactList}
+        defaultCcEmail={me?.ccPartner?.email ?? null}
+      />
     </div>
   );
 }

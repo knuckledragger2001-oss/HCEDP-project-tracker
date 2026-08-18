@@ -4,8 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
-import { TrashIcon } from "@/components/ui/icons";
+import { ArchiveIcon, TrashIcon } from "@/components/ui/icons";
 import AssignTaskButton from "@/components/tasks/AssignTaskButton";
+import ArchiveRequestDialog, { type CrmContact } from "./ArchiveRequestDialog";
 import {
   REQUEST_STATUSES,
   type RequestStatusValue,
@@ -18,6 +19,8 @@ export interface DetailValues {
   assignedToId: string | null;
   internalNotes: string;
   resultNote: string;
+  archivedAt: string | null;
+  archiveContactName: string | null;
 }
 
 // Internal editor for a single Placer request: triage its status, assignee,
@@ -26,10 +29,18 @@ export default function RequestDetail({
   request,
   staff,
   placeName,
+  purpose,
+  contacts,
+  defaultCcEmail,
+  suggestedContact,
 }: {
   request: DetailValues;
   staff: StaffOption[];
   placeName: string;
+  purpose: string | null;
+  contacts: CrmContact[];
+  defaultCcEmail: string | null;
+  suggestedContact: CrmContact | null;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -39,6 +50,9 @@ export default function RequestDetail({
   const [internalNotes, setInternalNotes] = useState(request.internalNotes);
   const [resultNote, setResultNote] = useState(request.resultNote);
   const [busy, setBusy] = useState(false);
+  const [archivedAt, setArchivedAt] = useState(request.archivedAt);
+  const [archiveContactName, setArchiveContactName] = useState(request.archiveContactName);
+  const [archiving, setArchiving] = useState(false);
 
   async function onSave() {
     let statusReason: string | undefined;
@@ -157,6 +171,12 @@ export default function RequestDetail({
         />
       </div>
 
+      {archivedAt && (
+        <p className="text-xs text-brand">
+          Archived to CRM{archiveContactName ? ` · ${archiveContactName}` : ""}
+        </p>
+      )}
+
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
           <button
@@ -173,6 +193,18 @@ export default function RequestDetail({
             placerRequestId={request.id}
             defaultTitle={`Follow up: ${placeName}`}
           />
+          {request.status === "COMPLETED" && !archivedAt && (
+            <button
+              type="button"
+              onClick={() => setArchiving(true)}
+              className="btn-secondary"
+              disabled={busy}
+              title="Email this correspondence to the CRM archive"
+            >
+              <ArchiveIcon className="text-sm" />
+              Archive to CRM
+            </button>
+          )}
         </div>
         <button
           type="button"
@@ -183,6 +215,21 @@ export default function RequestDetail({
           {busy ? "Saving…" : "Save changes"}
         </button>
       </div>
+
+      {archiving && (
+        <ArchiveRequestDialog
+          request={{ id: request.id, placeName, purpose }}
+          contacts={contacts}
+          defaultCcEmail={defaultCcEmail}
+          suggestedContact={suggestedContact}
+          onClose={() => setArchiving(false)}
+          onArchived={(updated) => {
+            setArchivedAt(updated.archivedAt);
+            setArchiveContactName(updated.archiveContactName);
+            setArchiving(false);
+          }}
+        />
+      )}
     </div>
   );
 }

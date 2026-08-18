@@ -14,7 +14,12 @@ import {
   type RequestStatusValue,
 } from "@/lib/placer/schema";
 import RequestDetail from "@/components/placer/RequestDetail";
+import type { CrmContact } from "@/components/placer/ArchiveRequestDialog";
 import type { StaffOption } from "@/components/placer/PlacerBoard";
+
+// How many remembered CRM contacts to offer as autofill suggestions. The
+// handful of regular requestors easily fits; this is just a sane ceiling.
+const CONTACT_SUGGESTION_LIMIT = 25;
 
 export const dynamic = "force-dynamic";
 
@@ -36,20 +41,29 @@ export default async function PlacerRequestDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireInternal();
+  const user = await requireInternal();
   const { id } = await params;
 
-  const [request, staff] = await Promise.all([
+  const [request, staff, contacts, me] = await Promise.all([
     prisma.placerRequest.findUnique({
       where: { id },
       include: {
-        submittedBy: { select: { name: true, email: true } },
+        submittedBy: { select: { name: true, email: true, role: true } },
       },
     }),
     prisma.user.findMany({
       where: { deletedAt: null, disabledAt: null, role: { in: ["ADMIN", "USER"] } },
       orderBy: [{ name: "asc" }, { email: "asc" }],
       select: { id: true, name: true, email: true },
+    }),
+    prisma.crmContact.findMany({
+      orderBy: { lastUsedAt: "desc" },
+      take: CONTACT_SUGGESTION_LIMIT,
+      select: { name: true, email: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { ccPartner: { select: { email: true } } },
     }),
   ]);
 
@@ -59,6 +73,14 @@ export default async function PlacerRequestDetailPage({
     id: s.id,
     label: s.name ?? s.email,
   }));
+
+  // A partner login submitted this themselves → their own login is the real
+  // city contact, so it's a strong default (staff-logged requests aren't, since
+  // the "submitter" there is just whoever typed it in, not the requestor).
+  const suggestedContact: CrmContact | null =
+    request.submittedBy?.role === "PARTNER" && request.submittedBy.email
+      ? { name: request.submittedBy.name ?? request.submittedBy.email, email: request.submittedBy.email }
+      : null;
 
   const reportLabel =
     request.reportType === "OTHER" && request.reportTypeOther
@@ -142,9 +164,15 @@ export default async function PlacerRequestDetailPage({
             assignedToId: request.assignedToId,
             internalNotes: request.internalNotes ?? "",
             resultNote: request.resultNote ?? "",
+            archivedAt: request.archivedAt?.toISOString() ?? null,
+            archiveContactName: request.archiveContactName,
           }}
           staff={staffOptions}
           placeName={request.placeName}
+          purpose={request.purpose}
+          contacts={contacts}
+          defaultCcEmail={me?.ccPartner?.email ?? null}
+          suggestedContact={suggestedContact}
         />
       </section>
     </div>

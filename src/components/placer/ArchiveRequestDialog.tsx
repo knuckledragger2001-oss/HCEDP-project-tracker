@@ -2,18 +2,17 @@
 
 // "Archive to CRM": opens the signed-in user's own email client (via a mailto
 // link — Outlook if that's their default handler, which it is for HCEDP staff)
-// with a new message addressed to the contact this task's correspondence was
-// with, BCC'd to the CRM's email-to-record archive address so GrowthZone logs
-// it automatically. We only ever build a mailto link and hand it to the
-// browser — no mail is ever sent from the server.
+// with a new message addressed to the city contact this completed Placer AI
+// request was for, BCC'd to the CRM's email-to-record archive address so
+// GrowthZone logs it automatically. We only ever build a mailto link and hand
+// it to the browser — no mail is ever sent from the server.
 
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/Toast";
 import { Field, Text } from "@/components/intake/fields";
-import type { TaskRow } from "./TasksView";
 
-export interface TaskContact {
+export interface CrmContact {
   name: string;
   email: string;
 }
@@ -37,25 +36,37 @@ function buildMailto(opts: {
   return `mailto:${encodeURIComponent(opts.to)}?${params.toString()}`;
 }
 
-export default function ArchiveTaskDialog({
-  task,
+export interface ArchivableRequest {
+  id: string;
+  placeName: string;
+  purpose: string | null;
+}
+
+export default function ArchiveRequestDialog({
+  request,
   contacts,
   defaultCcEmail,
+  suggestedContact,
   onClose,
   onArchived,
 }: {
-  task: TaskRow;
-  contacts: TaskContact[];
+  request: ArchivableRequest;
+  contacts: CrmContact[];
   defaultCcEmail: string | null;
+  /** The partner login that submitted this request, if any — a strong default. */
+  suggestedContact: CrmContact | null;
   onClose: () => void;
-  onArchived: (task: TaskRow, contact: TaskContact) => void;
+  onArchived: (
+    request: { id: string; archivedAt: string; archiveContactName: string | null },
+    contact: CrmContact,
+  ) => void;
 }) {
   const toast = useToast();
-  const [contactName, setContactName] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
+  const [contactName, setContactName] = useState(suggestedContact?.name ?? "");
+  const [contactEmail, setContactEmail] = useState(suggestedContact?.email ?? "");
   const [emailTouched, setEmailTouched] = useState(false);
   const [cc, setCc] = useState(defaultCcEmail ?? "");
-  const [subject, setSubject] = useState(task.title);
+  const [subject, setSubject] = useState(`Placer AI report: ${request.placeName}`);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,30 +94,27 @@ export default function ArchiveTaskDialog({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/tasks/${task.id}/archive`, {
+      const res = await fetch(`/api/placer-requests/${request.id}/archive`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contactName: name, contactEmail: email }),
       });
       const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.error ?? "Could not archive this task.");
+      if (!res.ok) throw new Error(body?.error ?? "Could not archive this request.");
 
       const mailto = buildMailto({
         to: email,
         cc: cc.trim() || null,
         bcc: ARCHIVE_BCC,
-        subject: subject.trim() || task.title,
-        body: task.details ?? "",
+        subject: subject.trim() || request.placeName,
+        body: request.purpose ?? "",
       });
       window.location.href = mailto;
 
-      onArchived(
-        { ...task, archivedAt: body.task.archivedAt, archiveContactName: body.task.archiveContactName },
-        body.contact as TaskContact,
-      );
+      onArchived(body.request, body.contact as CrmContact);
       toast.success("Archived. Finish and send the email in Outlook.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not archive this task.");
+      setError(e instanceof Error ? e.message : "Could not archive this request.");
     } finally {
       setBusy(false);
     }

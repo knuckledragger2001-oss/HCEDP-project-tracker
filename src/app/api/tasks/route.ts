@@ -80,8 +80,6 @@ export async function POST(req: NextRequest) {
       createdById: true,
       placerRequestId: true,
       createdAt: true,
-      archivedAt: true,
-      archiveContactName: true,
     },
   });
 
@@ -103,7 +101,6 @@ export async function POST(req: NextRequest) {
         ...task,
         dueDate: task.dueDate?.toISOString() ?? null,
         createdAt: task.createdAt.toISOString(),
-        archivedAt: task.archivedAt?.toISOString() ?? null,
         assignedToName: assignee.name ?? assignee.email,
         createdByName: user.name ?? user.email,
         placerRequestName: null,

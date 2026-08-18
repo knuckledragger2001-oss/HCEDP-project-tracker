@@ -121,18 +121,3 @@ export const UpdateTaskSchema = z.object({
   status: TaskStatusEnum.optional(),
 });
 export type UpdateTaskInput = z.infer<typeof UpdateTaskSchema>;
-
-// --- CRM archive -------------------------------------------------------------
-
-// A simple, forgiving email check — this only gates what we'll put in a mailto
-// link, not anything transactional, so it doesn't need to be exhaustive.
-const emailField = z.string().trim().toLowerCase().email("Enter a valid email address.");
-
-// Body accepted by POST /api/tasks/[id]/archive. Only valid once the task is
-// DONE (enforced by the route); records who the correspondence was archived to
-// and remembers the contact for next time (see TaskContact).
-export const ArchiveTaskSchema = z.object({
-  contactName: z.string().trim().min(1, "Who is this correspondence with?"),
-  contactEmail: emailField,
-});
-export type ArchiveTaskInput = z.infer<typeof ArchiveTaskSchema>;

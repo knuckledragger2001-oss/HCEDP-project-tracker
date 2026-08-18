@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireInternal } from "@/lib/auth/session";
 import TasksView, { type TaskRow } from "@/components/tasks/TasksView";
-import type { TaskContact } from "@/components/tasks/ArchiveTaskDialog";
 import type { StaffOption } from "@/components/placer/PlacerBoard";
 
 export const dynamic = "force-dynamic";
@@ -11,16 +10,12 @@ export const metadata: Metadata = {
   title: "My Tasks — HCEDP Projects Tracker",
 };
 
-// How many remembered CRM contacts to offer as autofill suggestions. The
-// handful of regular requestors easily fits; this is just a sane ceiling.
-const CONTACT_SUGGESTION_LIMIT = 25;
-
 // Tasks assigned to or raised by the signed-in user. Two lists, one page —
 // what's on my plate, and what I've asked others to do.
 export default async function TasksPage() {
   const user = await requireInternal();
 
-  const [assignedToMe, createdByMe, staff, contacts, me] = await Promise.all([
+  const [assignedToMe, createdByMe, staff] = await Promise.all([
     prisma.task.findMany({
       where: { assignedToId: user.id, deletedAt: null },
       orderBy: [{ status: "asc" }, { dueDate: "asc" }, { createdAt: "desc" }],
@@ -42,15 +37,6 @@ export default async function TasksPage() {
       orderBy: [{ name: "asc" }, { email: "asc" }],
       select: { id: true, name: true, email: true },
     }),
-    prisma.taskContact.findMany({
-      orderBy: { lastUsedAt: "desc" },
-      take: CONTACT_SUGGESTION_LIMIT,
-      select: { name: true, email: true },
-    }),
-    prisma.user.findUnique({
-      where: { id: user.id },
-      select: { ccPartner: { select: { email: true } } },
-    }),
   ]);
 
   const toRow = (t: (typeof assignedToMe)[number] | (typeof createdByMe)[number]): TaskRow => ({
@@ -69,16 +55,12 @@ export default async function TasksPage() {
     placerRequestId: t.placerRequestId,
     placerRequestName: t.placerRequest?.placeName ?? null,
     createdAt: t.createdAt.toISOString(),
-    archivedAt: t.archivedAt?.toISOString() ?? null,
-    archiveContactName: t.archiveContactName,
   });
 
   const staffOptions: StaffOption[] = staff.map((s) => ({
     id: s.id,
     label: s.name ?? s.email,
   }));
-
-  const contactList: TaskContact[] = contacts;
 
   return (
     <div className="space-y-6">
@@ -93,8 +75,6 @@ export default async function TasksPage() {
         assignedToMe={assignedToMe.map(toRow)}
         createdByMe={createdByMe.map(toRow)}
         staff={staffOptions}
-        contacts={contactList}
-        defaultCcEmail={me?.ccPartner?.email ?? null}
       />
     </div>
   );

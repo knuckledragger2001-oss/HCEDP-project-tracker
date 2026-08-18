@@ -684,10 +684,11 @@ model User {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  // Who to auto-CC when this user archives a completed task's correspondence to
-  // the CRM (see Task.archivedAt below) — e.g. two staff who cover for each
-  // other. Set from the Users admin page; not necessarily reciprocal in the
-  // data (each side is configured separately), though in practice it is.
+  // Who to auto-CC when this user archives a completed Placer AI request's
+  // correspondence to the CRM (see PlacerRequest.archivedAt below) — e.g. two
+  // staff who cover for each other. Set from the Users admin page; not
+  // necessarily reciprocal in the data (each side is configured separately),
+  // though in practice it is.
   ccPartnerId String?
   ccPartner   User?   @relation("UserCcPartner", fields: [ccPartnerId], references: [id], onDelete: SetNull)
   ccPartnerOf User[]  @relation("UserCcPartner")
@@ -762,6 +763,15 @@ model PlacerRequest {
   resultNote    String?             @db.Text
   completedAt   DateTime?
 
+  // Set once a completed request's correspondence has been emailed to the CRM
+  // archive address (see ArchiveRequestDialog / POST
+  // /api/placer-requests/[id]/archive). The contact is stamped here (not just
+  // referenced via CrmContact) so this record reads correctly even if the
+  // contact is later renamed or removed.
+  archivedAt          DateTime?
+  archiveContactName  String?
+  archiveContactEmail String?
+
   // --- Planning -------------------------------------------------------------
   // A PLANNED request is one a partner has told us is coming. It sits on the
   // planning calendar (dateRangeStart is the event date) until queueOnDate, when
@@ -777,7 +787,7 @@ model PlacerRequest {
   series         PlacerRequestSeries? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
   occurrenceDate DateTime?
 
-  // Pings and notifications that point at this request.
+  // Tasks and notifications that point at this request.
   tasks         Task[]
   notifications Notification[]
 
@@ -906,14 +916,6 @@ model Task {
   placerRequestId String?
   placerRequest   PlacerRequest? @relation(fields: [placerRequestId], references: [id], onDelete: SetNull)
 
-  // Set once a completed task's correspondence has been emailed to the CRM
-  // archive address (see ArchiveTaskDialog / POST /api/tasks/[id]/archive).
-  // The contact is stamped here (not just referenced via TaskContact) so this
-  // record reads correctly even if the contact is later renamed or removed.
-  archivedAt          DateTime?
-  archiveContactName  String?
-  archiveContactEmail String?
-
   notifications Notification[]
 
   deletedAt DateTime?
@@ -927,11 +929,12 @@ model Task {
   @@index([deletedAt])
 }
 
-// A CRM contact remembered from past "Archive to CRM" sends, so the dialog can
-// suggest the small, recurring set of requestors staff correspond with instead
-// of retyping the same name/email every time. Global (not per-user) since the
-// same handful of contacts are shared across staff.
-model TaskContact {
+// A CRM contact remembered from past "Archive to CRM" sends (see
+// PlacerRequest.archivedAt), so the dialog can suggest the small, recurring set
+// of requestors staff correspond with instead of retyping the same name/email
+// every time. Global (not per-user) since the same handful of contacts are
+// shared across staff.
+model CrmContact {
   id         String   @id @default(cuid())
   name       String
   email      String   @unique

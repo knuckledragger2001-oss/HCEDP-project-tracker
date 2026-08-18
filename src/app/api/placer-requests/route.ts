@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
         dateRangeStart: true,
         dateRangeEnd: true,
         timeframeNote: true,
+        purpose: true,
         status: true,
         assignedToId: true,
         neededByDate: true,
@@ -79,7 +80,8 @@ export async function POST(req: NextRequest) {
     });
 
     // Shaped to match the board's QueueRequest so it can be inserted in place
-    // without a full reload.
+    // without a full reload. Staff are entering this by hand, so there's no
+    // partner login to suggest as the CRM contact, and it can't be archived yet.
     return NextResponse.json(
       {
         request: {
@@ -89,6 +91,9 @@ export async function POST(req: NextRequest) {
           neededByDate: created.neededByDate?.toISOString() ?? null,
           createdAt: created.createdAt.toISOString(),
           submittedByName: user.name ?? user.email,
+          suggestedContact: null,
+          archivedAt: null,
+          archiveContactName: null,
         },
       },
       { status: 201 },

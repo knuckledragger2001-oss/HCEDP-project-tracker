@@ -26,6 +26,7 @@ export default async function UsersAdminPage() {
       disabledAt: true,
       lastLoginAt: true,
       createdAt: true,
+      ccPartnerId: true,
     },
   });
 
@@ -38,7 +39,13 @@ export default async function UsersAdminPage() {
     disabled: u.disabledAt != null,
     lastLoginLabel: u.lastLoginAt ? formatTimestamp(u.lastLoginAt) : "Never",
     isSelf: u.id === admin.id,
+    ccPartnerId: u.ccPartnerId,
   }));
+
+  // Options for the "Auto-CC partner" picker — internal staff only.
+  const internalUsers = users
+    .filter((u) => u.role !== "PARTNER")
+    .map((u) => ({ id: u.id, label: u.name ?? u.email }));
 
   return (
     <div className="space-y-5">
@@ -56,7 +63,7 @@ export default async function UsersAdminPage() {
         <CreateUserForm />
       </div>
 
-      <UsersTable users={rows} />
+      <UsersTable users={rows} internalUsers={internalUsers} />
     </div>
   );
 }

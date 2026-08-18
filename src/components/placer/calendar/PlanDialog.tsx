@@ -10,7 +10,7 @@ import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Area, DateInput, Field, Select, Text } from "@/components/intake/fields";
-import PingButton from "@/components/tasks/PingButton";
+import AssignTaskButton from "@/components/tasks/AssignTaskButton";
 import {
   PARTNER_CITY_LABELS,
   REPORT_TYPES,
@@ -544,7 +544,7 @@ export default function PlanDialog({
                 <button type="button" className="btn-danger h-8 py-1 text-xs" onClick={deletePlan} disabled={busy}>
                   Remove
                 </button>
-                <PingButton
+                <AssignTaskButton
                   staff={staff}
                   defaultTitle={`Follow up: ${plan.placeName}`}
                   className="btn-secondary h-8 py-1 text-xs"

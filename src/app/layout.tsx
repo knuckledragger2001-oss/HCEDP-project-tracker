@@ -43,7 +43,7 @@ const NAV_GROUPS: SideGroup[] = [
       { href: "/reports", label: "Reports", icon: "reports" },
       { href: "/placer", label: "Placer requests", icon: "placer" },
       { href: "/placer/calendar", label: "Placer calendar", icon: "calendar" },
-      { href: "/tasks", label: "My pings", icon: "ping" },
+      { href: "/tasks", label: "My tasks", icon: "tasks" },
     ],
   },
 ];
@@ -75,7 +75,7 @@ function sectionTitle(pathname: string): string {
   if (pathname.startsWith("/placer/calendar")) return "Placer calendar";
   if (pathname.startsWith("/placer") || pathname.startsWith("/requests"))
     return "Placer requests";
-  if (pathname.startsWith("/tasks")) return "My pings";
+  if (pathname.startsWith("/tasks")) return "My tasks";
   if (pathname.startsWith("/admin/users")) return "Users";
   return "HCEDP";
 }

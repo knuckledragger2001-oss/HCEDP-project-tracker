@@ -96,7 +96,7 @@ export async function PATCH(
     select: { id: true, status: true, assignedToId: true },
   });
 
-  // Ping the new owner. Only on an actual change of hands, and never when
+  // Notify the new owner. Only on an actual change of hands, and never when
   // someone assigns a request to themselves.
   if (updated.assignedToId && updated.assignedToId !== existing.assignedToId) {
     await notify(

@@ -11,8 +11,8 @@ import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 
-// PATCH /api/tasks/[id] — tick a ping off, reassign it, or edit it. Both the
-// assignee and the person who raised it can change a ping; nobody else needs to.
+// PATCH /api/tasks/[id] — tick a task off, reassign it, or edit it. Both the
+// assignee and the person who raised it can change a task; nobody else needs to.
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -24,11 +24,11 @@ export async function PATCH(
   const { id } = await params;
   const existing = await prisma.task.findUnique({ where: { id } });
   if (!existing) {
-    return NextResponse.json({ error: "Ping not found." }, { status: 404 });
+    return NextResponse.json({ error: "Task not found." }, { status: 404 });
   }
   if (existing.assignedToId !== user.id && existing.createdById !== user.id) {
     return NextResponse.json(
-      { error: "Only the assignee or the person who sent this ping can change it." },
+      { error: "Only the assignee or the person who raised this task can change it." },
       { status: 403 },
     );
   }
@@ -41,7 +41,7 @@ export async function PATCH(
     return NextResponse.json({ ok: true });
   }
   if (existing.deletedAt) {
-    return NextResponse.json({ error: "Ping not found." }, { status: 404 });
+    return NextResponse.json({ error: "Task not found." }, { status: 404 });
   }
 
   const parsed = UpdateTaskSchema.safeParse(body);
@@ -69,7 +69,7 @@ export async function PATCH(
   if (d.status !== undefined) {
     data.status = d.status;
     data.completedAt = d.status === "DONE" ? new Date() : null;
-    // Reopening a ping should start its reminders over.
+    // Reopening a task should start its reminders over.
     if (d.status === "OPEN") dueDateMoved = true;
   }
 
@@ -86,7 +86,7 @@ export async function PATCH(
       !isInternal(assignee.role)
     ) {
       return NextResponse.json(
-        { error: "Pings can only go to internal staff." },
+        { error: "Tasks can only be assigned to internal staff." },
         { status: 400 },
       );
     }
@@ -116,7 +116,7 @@ export async function PATCH(
       {
         userId: reassignedTo,
         kind: "TASK_ASSIGNED",
-        title: `${user.name ?? user.email} pinged you: ${updated.title}`,
+        title: `${user.name ?? user.email} assigned you: ${updated.title}`,
         body: updated.dueDate ? `Due ${formatDate(updated.dueDate)}.` : null,
         href: "/tasks",
         taskId: id,
@@ -125,7 +125,7 @@ export async function PATCH(
     );
   }
 
-  // Tell whoever raised the ping that it's done — that's the whole point of
+  // Tell whoever raised the task that it's done — that's the whole point of
   // having asked someone.
   if (d.status === "DONE" && existing.status !== "DONE") {
     await notify(
@@ -133,7 +133,7 @@ export async function PATCH(
         userId: existing.createdById,
         kind: "TASK_COMPLETED",
         title: `Done: ${updated.title}`,
-        body: `${user.name ?? user.email} completed the ping you sent.`,
+        body: `${user.name ?? user.email} completed the task you assigned.`,
         href: "/tasks",
         taskId: id,
       },
@@ -151,7 +151,7 @@ export async function PATCH(
 }
 
 // DELETE /api/tasks/[id] — soft delete, same restore-from-toast contract as the
-// rest of the app. Only the person who sent the ping can withdraw it.
+// rest of the app. Only the person who raised the task can withdraw it.
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -165,11 +165,11 @@ export async function DELETE(
     select: { createdById: true, deletedAt: true },
   });
   if (!existing || existing.deletedAt) {
-    return NextResponse.json({ error: "Ping not found." }, { status: 404 });
+    return NextResponse.json({ error: "Task not found." }, { status: 404 });
   }
   if (existing.createdById !== gate.user.id) {
     return NextResponse.json(
-      { error: "Only the person who sent this ping can delete it." },
+      { error: "Only the person who raised this task can delete it." },
       { status: 403 },
     );
   }

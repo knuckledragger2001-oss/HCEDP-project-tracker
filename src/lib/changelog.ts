@@ -36,7 +36,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: "2026.08.18",
     date: "2026-08-18",
-    title: "Plan future Placer AI requests, and ping a teammate",
+    title: "Plan future Placer AI requests, and assign tasks to teammates",
     items: [
       {
         tag: "new",
@@ -51,12 +51,29 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         tag: "new",
         text:
-          "You can now \"Ping\" a teammate to assign them something, with an optional due date — from the new bell icon's \"New ping\" button, from any Placer request, or from a plan on the calendar. They're notified right away, and again as the due date approaches and if it passes. Your pings live on the new \"My pings\" page.",
+          "You can now assign a task to a teammate, with an optional due date — from the new bell icon, from any Placer request, or from a plan on the calendar. They're notified right away, and again as the due date approaches and if it passes. Your tasks live on the new \"My tasks\" page.",
       },
       {
         tag: "new",
         text:
-          "A notification bell in the top bar shows pings sent to you, requests assigned to you, and due-date reminders, so nothing needed from you gets missed.",
+          "A notification bell in the top bar shows tasks assigned to you, Placer requests assigned to you, and due-date reminders, so nothing needed from you gets missed.",
+      },
+    ],
+  },
+  {
+    version: "2026.08.18-2",
+    date: "2026-08-18",
+    title: "Archive completed tasks to the CRM",
+    items: [
+      {
+        tag: "new",
+        text:
+          "A completed task now has an \"Archive to CRM\" button. It opens a new email in Outlook addressed to the contact you were corresponding with, BCC's the CRM's archive address so it's logged automatically, and CC's your coverage partner. Fill in the contact once and it's remembered for next time — no more retyping the same handful of requestors' emails.",
+      },
+      {
+        tag: "improved",
+        text:
+          "An admin can now set each staff member's \"Auto-CC partner\" from the Users page — whoever should be CC'd when that person archives a task to the CRM.",
       },
     ],
   },

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { TrashIcon } from "@/components/ui/icons";
-import PingButton from "@/components/tasks/PingButton";
+import AssignTaskButton from "@/components/tasks/AssignTaskButton";
 import {
   REQUEST_STATUSES,
   type RequestStatusValue,
@@ -168,7 +168,7 @@ export default function RequestDetail({
             <TrashIcon className="text-sm" />
             Delete
           </button>
-          <PingButton
+          <AssignTaskButton
             staff={staff}
             placerRequestId={request.id}
             defaultTitle={`Follow up: ${placeName}`}

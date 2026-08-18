@@ -1,8 +1,9 @@
 "use client";
 
-// "My Pings": what's assigned to me, and what I've assigned to others. A ping
+// "My Tasks": what's assigned to me, and what I've assigned to others. A task
 // can be ticked done (and reopened), reassigned, or withdrawn by whoever raised
-// it. See CreateTaskDialog for the "new ping" flow.
+// it. See CreateTaskDialog for the "new task" flow and ArchiveTaskDialog for
+// logging a completed task's correspondence to the CRM.
 
 import { useState } from "react";
 import Link from "next/link";
@@ -16,9 +17,10 @@ import {
   dueClass,
   type TaskStatusValue,
 } from "@/lib/tasks/schema";
-import { PlusIcon, TrashIcon } from "@/components/ui/icons";
+import { ArchiveIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
 import type { StaffOption } from "@/components/placer/PlacerBoard";
 import CreateTaskDialog from "./CreateTaskDialog";
+import ArchiveTaskDialog, { type TaskContact } from "./ArchiveTaskDialog";
 
 export interface TaskRow {
   id: string;
@@ -34,6 +36,8 @@ export interface TaskRow {
   placerRequestId: string | null;
   placerRequestName: string | null;
   createdAt: string;
+  archivedAt: string | null;
+  archiveContactName: string | null;
 }
 
 function Row({
@@ -42,6 +46,7 @@ function Row({
   showCreator,
   onToggle,
   onDelete,
+  onArchive,
   canDelete,
   busy,
 }: {
@@ -50,6 +55,7 @@ function Row({
   showCreator: boolean;
   onToggle: (task: TaskRow) => void;
   onDelete: (task: TaskRow) => void;
+  onArchive: (task: TaskRow) => void;
   canDelete: boolean;
   busy: boolean;
 }) {
@@ -88,15 +94,31 @@ function Row({
               {task.placerRequestName ?? "Linked request"} →
             </Link>
           )}
+          {task.archivedAt && (
+            <span className="text-brand">
+              Archived to CRM{task.archiveContactName ? ` · ${task.archiveContactName}` : ""}
+            </span>
+          )}
         </div>
       </div>
+      {done && !task.archivedAt && (
+        <button
+          type="button"
+          onClick={() => onArchive(task)}
+          disabled={busy}
+          className="btn-secondary h-7 shrink-0 py-0.5 text-xs"
+          title="Email this correspondence to the CRM archive"
+        >
+          <ArchiveIcon className="h-3.5 w-3.5" /> Archive to CRM
+        </button>
+      )}
       {canDelete && (
         <button
           type="button"
           onClick={() => onDelete(task)}
           disabled={busy}
           className="rounded p-1 text-muted-2 hover:bg-danger/10 hover:text-danger"
-          aria-label="Withdraw ping"
+          aria-label="Withdraw task"
           title="Withdraw"
         >
           <TrashIcon className="h-3.5 w-3.5" />
@@ -112,12 +134,14 @@ function List({
   showCreator,
   currentUserId,
   onChange,
+  onArchive,
 }: {
   tasks: TaskRow[];
   showAssignee: boolean;
   showCreator: boolean;
   currentUserId: string;
   onChange: (tasks: TaskRow[]) => void;
+  onArchive: (task: TaskRow) => void;
 }) {
   const toast = useToast();
   const confirm = useConfirm();
@@ -136,7 +160,7 @@ function List({
       if (!res.ok) throw new Error("Failed");
     } catch {
       onChange(tasks);
-      toast.error("Could not update the ping.");
+      toast.error("Could not update the task.");
     } finally {
       setBusyId(null);
     }
@@ -144,7 +168,7 @@ function List({
 
   async function remove(task: TaskRow) {
     const ok = await confirm({
-      title: "Withdraw this ping?",
+      title: "Withdraw this task?",
       description: `"${task.title}" will be removed.`,
       confirmLabel: "Withdraw",
       tone: "danger",
@@ -156,10 +180,10 @@ function List({
     try {
       const res = await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed");
-      toast.success("Ping withdrawn.");
+      toast.success("Task withdrawn.");
     } catch {
       onChange(prev);
-      toast.error("Could not withdraw the ping.");
+      toast.error("Could not withdraw the task.");
     } finally {
       setBusyId(null);
     }
@@ -179,6 +203,7 @@ function List({
           showCreator={showCreator}
           onToggle={toggle}
           onDelete={remove}
+          onArchive={onArchive}
           canDelete={t.createdById === currentUserId}
           busy={busyId === t.id}
         />
@@ -192,24 +217,35 @@ export default function TasksView({
   assignedToMe: initialAssignedToMe,
   createdByMe: initialCreatedByMe,
   staff,
+  contacts,
+  defaultCcEmail,
 }: {
   currentUserId: string;
   assignedToMe: TaskRow[];
   createdByMe: TaskRow[];
   staff: StaffOption[];
+  contacts: TaskContact[];
+  defaultCcEmail: string | null;
 }) {
   const [assignedToMe, setAssignedToMe] = useState(initialAssignedToMe);
   const [createdByMe, setCreatedByMe] = useState(initialCreatedByMe);
   const [createOpen, setCreateOpen] = useState(false);
+  const [archiving, setArchiving] = useState<TaskRow | null>(null);
+  const [contactList, setContactList] = useState(contacts);
 
   const openCount = assignedToMe.filter((t) => t.status === "OPEN").length;
+
+  function applyArchived(task: TaskRow) {
+    setAssignedToMe((cur) => cur.map((t) => (t.id === task.id ? task : t)));
+    setCreatedByMe((cur) => cur.map((t) => (t.id === task.id ? task : t)));
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-muted">{openCount} open ping{openCount === 1 ? "" : "s"} for you</span>
+        <span className="text-sm text-muted">{openCount} open task{openCount === 1 ? "" : "s"} for you</span>
         <button type="button" className="btn-primary h-8 py-1 text-xs" onClick={() => setCreateOpen(true)}>
-          <PlusIcon className="h-3.5 w-3.5" /> New ping
+          <PlusIcon className="h-3.5 w-3.5" /> New task
         </button>
       </div>
 
@@ -221,17 +257,19 @@ export default function TasksView({
           showCreator
           currentUserId={currentUserId}
           onChange={setAssignedToMe}
+          onArchive={setArchiving}
         />
       </section>
 
       <section className="space-y-2.5">
-        <h2 className="text-sm font-semibold text-foreground">You pinged ({createdByMe.length})</h2>
+        <h2 className="text-sm font-semibold text-foreground">Assigned by you ({createdByMe.length})</h2>
         <List
           tasks={createdByMe}
           showAssignee
           showCreator={false}
           currentUserId={currentUserId}
           onChange={setCreatedByMe}
+          onArchive={setArchiving}
         />
       </section>
 
@@ -246,6 +284,23 @@ export default function TasksView({
             } else {
               setCreatedByMe((cur) => [task, ...cur]);
             }
+          }}
+        />
+      )}
+
+      {archiving && (
+        <ArchiveTaskDialog
+          task={archiving}
+          contacts={contactList}
+          defaultCcEmail={defaultCcEmail}
+          onClose={() => setArchiving(null)}
+          onArchived={(task, contact) => {
+            applyArchived(task);
+            setContactList((cur) => {
+              const rest = cur.filter((c) => c.email !== contact.email);
+              return [contact, ...rest];
+            });
+            setArchiving(null);
           }}
         />
       )}

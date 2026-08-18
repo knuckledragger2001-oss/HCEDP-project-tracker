@@ -146,7 +146,7 @@ export async function regenerateSeries(seriesId: string): Promise<void> {
 
 /**
  * Moves every planned request whose queue date has arrived into the live queue
- * and pings whoever owns it. Idempotent twice over: the update only matches rows
+ * and notifies whoever owns it. Idempotent twice over: the update only matches rows
  * still PLANNED, and the notification is skipped if this request has already
  * announced itself.
  */
@@ -195,7 +195,7 @@ async function releaseOne(id: string, actorId?: string): Promise<boolean> {
   if (!request) return true;
 
   // Tell the person who will actually work it; failing an assignee, whoever
-  // planned it. A manual release doesn't ping the person who clicked it.
+  // planned it. A manual release doesn't notify the person who clicked it.
   const owner = request.assignedToId ?? request.submittedById;
   const alreadyAnnounced = await prisma.notification.count({
     where: { placerRequestId: id, kind: "REQUEST_RELEASED" },

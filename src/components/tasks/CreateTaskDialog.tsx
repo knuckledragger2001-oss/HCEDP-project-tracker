@@ -38,7 +38,7 @@ export default function CreateTaskDialog({
 
   async function save() {
     if (!title.trim()) return setError("What needs doing?");
-    if (!assignedToId) return setError("Choose who to ping.");
+    if (!assignedToId) return setError("Choose who to assign this to.");
     setBusy(true);
     setError(null);
     try {
@@ -48,11 +48,11 @@ export default function CreateTaskDialog({
         body: JSON.stringify({ title, details, dueDate, assignedToId, priority }),
       });
       const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.error ?? "Could not send the ping.");
+      if (!res.ok) throw new Error(body?.error ?? "Could not create the task.");
       onCreated(body.task as TaskRow);
-      toast.success("Ping sent.");
+      toast.success("Task assigned.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send the ping.");
+      setError(e instanceof Error ? e.message : "Could not create the task.");
     } finally {
       setBusy(false);
     }
@@ -68,7 +68,7 @@ export default function CreateTaskDialog({
       }}
     >
       <div className="w-full max-w-md rounded-xl bg-surface p-5 shadow-xl">
-        <h2 className="text-base font-semibold text-foreground">New ping</h2>
+        <h2 className="text-base font-semibold text-foreground">New task</h2>
         <p className="mt-0.5 text-xs text-muted">Assign something to a teammate.</p>
 
         <div className="mt-4 space-y-3">
@@ -102,7 +102,7 @@ export default function CreateTaskDialog({
             Cancel
           </button>
           <button type="button" className="btn-primary" onClick={save} disabled={busy}>
-            {busy ? "Sending…" : "Send ping"}
+            {busy ? "Assigning…" : "Assign task"}
           </button>
         </div>
       </div>

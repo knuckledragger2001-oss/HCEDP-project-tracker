@@ -1,6 +1,6 @@
 "use client";
 
-// The bell in the top bar: recent in-app notifications (task pings, Placer
+// The bell in the top bar: recent in-app notifications (task assignments, Placer
 // request assignments and due-date reminders, planned requests that just hit
 // the queue). Polls GET /api/notifications, which also drives the throttled
 // Placer schedule sync (release due plans, raise reminders) — see
@@ -149,7 +149,7 @@ export default function NotificationBell() {
           <div className="max-h-96 overflow-y-auto">
             {items.length === 0 ? (
               <p className="px-3.5 py-6 text-center text-xs text-muted-2">
-                Nothing yet. Pings and due-date reminders show up here.
+                Nothing yet. Task assignments and due-date reminders show up here.
               </p>
             ) : (
               <ul className="divide-y divide-line">
@@ -191,7 +191,7 @@ export default function NotificationBell() {
               onClick={() => setOpen(false)}
               className="text-xs font-medium text-brand hover:underline"
             >
-              View your pings →
+              View your tasks →
             </Link>
           </div>
         </div>

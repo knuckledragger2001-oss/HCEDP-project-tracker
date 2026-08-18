@@ -10,8 +10,8 @@ import { CreateTaskSchema } from "@/lib/tasks/schema";
 
 export const runtime = "nodejs";
 
-// POST /api/tasks — ping someone: create a task assigned to a teammate. The
-// assignee is notified immediately (unless they pinged themselves), and again by
+// POST /api/tasks — create a task assigned to a teammate. The assignee is
+// notified immediately (unless they assigned it to themselves), and again by
 // the reminder sweep as the due date approaches and once it passes.
 export async function POST(req: NextRequest) {
   const gate = await requireInternalApi();
@@ -39,12 +39,12 @@ export async function POST(req: NextRequest) {
     !isInternal(assignee.role)
   ) {
     return NextResponse.json(
-      { error: "Pings can only go to internal staff." },
+      { error: "Tasks can only be assigned to internal staff." },
       { status: 400 },
     );
   }
 
-  // A ping can hang off a Placer request; anything else stands on its own.
+  // A task can hang off a Placer request; anything else stands on its own.
   let placerRequestId: string | null = null;
   if (d.placerRequestId) {
     const request = await prisma.placerRequest.findUnique({
@@ -80,6 +80,8 @@ export async function POST(req: NextRequest) {
       createdById: true,
       placerRequestId: true,
       createdAt: true,
+      archivedAt: true,
+      archiveContactName: true,
     },
   });
 
@@ -87,7 +89,7 @@ export async function POST(req: NextRequest) {
     {
       userId: assignee.id,
       kind: "TASK_ASSIGNED",
-      title: `${user.name ?? user.email} pinged you: ${task.title}`,
+      title: `${user.name ?? user.email} assigned you: ${task.title}`,
       body: dueDate ? `Due ${formatDate(dueDate)}.` : null,
       href: "/tasks",
       taskId: task.id,
@@ -101,8 +103,10 @@ export async function POST(req: NextRequest) {
         ...task,
         dueDate: task.dueDate?.toISOString() ?? null,
         createdAt: task.createdAt.toISOString(),
+        archivedAt: task.archivedAt?.toISOString() ?? null,
         assignedToName: assignee.name ?? assignee.email,
         createdByName: user.name ?? user.email,
+        placerRequestName: null,
       },
     },
     { status: 201 },

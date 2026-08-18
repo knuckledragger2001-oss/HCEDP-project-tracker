@@ -16,6 +16,7 @@ import {
   resetPassword,
   deleteUser,
   restoreUser,
+  setCcPartner,
   type ActionResult,
 } from "./actions";
 
@@ -29,9 +30,19 @@ export type UserRowData = {
   disabled: boolean;
   lastLoginLabel: string;
   isSelf: boolean;
+  /** Who this user's "Archive to CRM" button auto-CCs; null if unset. */
+  ccPartnerId: string | null;
 };
 
-export default function UsersTable({ users }: { users: UserRowData[] }) {
+export type InternalUserOption = { id: string; label: string };
+
+export default function UsersTable({
+  users,
+  internalUsers,
+}: {
+  users: UserRowData[];
+  internalUsers: InternalUserOption[];
+}) {
   return (
     <div className="card overflow-x-auto p-0">
       <table className="w-full border-collapse text-sm">
@@ -41,13 +52,14 @@ export default function UsersTable({ users }: { users: UserRowData[] }) {
             <th scope="col" className="border-b border-line bg-green-tint px-4 py-2.5">Role</th>
             <th scope="col" className="border-b border-line bg-green-tint px-4 py-2.5">Status</th>
             <th scope="col" className="border-b border-line bg-green-tint px-4 py-2.5">Last login</th>
+            <th scope="col" className="border-b border-line bg-green-tint px-4 py-2.5">Auto-CC partner</th>
             <th scope="col" className="border-b border-line bg-green-tint px-4 py-2.5">Reset password</th>
             <th scope="col" className="border-b border-line bg-green-tint px-4 py-2.5 text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
           {users.map((u) => (
-            <UserRow key={u.id} user={u} />
+            <UserRow key={u.id} user={u} internalUsers={internalUsers} />
           ))}
         </tbody>
       </table>
@@ -55,7 +67,13 @@ export default function UsersTable({ users }: { users: UserRowData[] }) {
   );
 }
 
-function UserRow({ user: u }: { user: UserRowData }) {
+function UserRow({
+  user: u,
+  internalUsers,
+}: {
+  user: UserRowData;
+  internalUsers: InternalUserOption[];
+}) {
   const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
@@ -64,6 +82,7 @@ function UserRow({ user: u }: { user: UserRowData }) {
     u.role === "ADMIN" ? "ADMIN" : "USER",
   );
   const [password, setPassword] = useState("");
+  const [ccPartnerId, setCcPartnerId] = useState(u.ccPartnerId ?? "");
 
   // Run a server action, surface the result as a toast, and refresh on success.
   async function run(
@@ -155,6 +174,11 @@ function UserRow({ user: u }: { user: UserRowData }) {
       });
   }
 
+  async function onApplyCcPartner() {
+    if (ccPartnerId === (u.ccPartnerId ?? "")) return;
+    await run(() => setCcPartner(u.id, ccPartnerId || null), "Auto-CC partner updated.");
+  }
+
   return (
     <tr className="border-b border-line align-top transition-colors last:border-0 hover:bg-surface-2">
       <td className="px-4 py-3">
@@ -202,6 +226,34 @@ function UserRow({ user: u }: { user: UserRowData }) {
         )}
       </td>
       <td className="mono px-4 py-3 text-muted">{u.lastLoginLabel}</td>
+      <td className="px-4 py-3">
+        {u.role === "PARTNER" ? (
+          <span className="text-xs text-muted/60">—</span>
+        ) : (
+          <div className="flex items-center gap-1">
+            <select
+              value={ccPartnerId}
+              onChange={(e) => setCcPartnerId(e.target.value)}
+              className="input h-8 w-auto py-1 text-xs"
+              disabled={busy}
+            >
+              <option value="">None</option>
+              {internalUsers
+                .filter((o) => o.id !== u.id)
+                .map((o) => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+            </select>
+            <button
+              className="text-xs text-brand hover:underline disabled:opacity-50"
+              onClick={onApplyCcPartner}
+              disabled={busy || ccPartnerId === (u.ccPartnerId ?? "")}
+            >
+              Apply
+            </button>
+          </div>
+        )}
+      </td>
       <td className="px-4 py-3">
         {u.isSelf ? (
           <span className="text-xs text-muted/60">—</span>

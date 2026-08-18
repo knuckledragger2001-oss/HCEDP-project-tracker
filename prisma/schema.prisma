@@ -684,6 +684,14 @@ model User {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
+  // Who to auto-CC when this user archives a completed task's correspondence to
+  // the CRM (see Task.archivedAt below) — e.g. two staff who cover for each
+  // other. Set from the Users admin page; not necessarily reciprocal in the
+  // data (each side is configured separately), though in practice it is.
+  ccPartnerId String?
+  ccPartner   User?   @relation("UserCcPartner", fields: [ccPartnerId], references: [id], onDelete: SetNull)
+  ccPartnerOf User[]  @relation("UserCcPartner")
+
   sessions Session[]
 
   // Placer AI requests this user submitted (partners) and is assigned to fulfil
@@ -695,7 +703,7 @@ model User {
   placerSeriesCreated  PlacerRequestSeries[] @relation("PlacerSeriesCreatedBy")
   placerSeriesAssigned PlacerRequestSeries[] @relation("PlacerSeriesAssignedTo")
 
-  // Pings: tasks assigned to this user and tasks this user assigned to others.
+  // Tasks assigned to this user, and tasks this user assigned to others.
   tasksAssigned Task[] @relation("TaskAssignedTo")
   tasksCreated  Task[] @relation("TaskCreatedBy")
 
@@ -870,10 +878,10 @@ model PlacerRequestSeries {
 }
 
 // ---------------------------------------------------------------------------
-// Pings — assigned tasks and in-app notifications
+// Tasks and in-app notifications
 // ---------------------------------------------------------------------------
 
-// A ping: a piece of work assigned to one internal user, optionally with a due
+// A task: a piece of work assigned to one internal user, optionally with a due
 // date and optionally attached to a Placer AI request. Assigning one notifies
 // the assignee immediately; the reminder sweep notifies them again as the due
 // date approaches and once it passes (see src/lib/notifications/notify.ts).
@@ -893,10 +901,18 @@ model Task {
   createdById String
   createdBy   User   @relation("TaskCreatedBy", fields: [createdById], references: [id])
 
-  // Optional subject: the Placer request this ping is about. Deleting the
-  // request leaves the ping standing but unlinked.
+  // Optional subject: the Placer request this task is about. Deleting the
+  // request leaves the task standing but unlinked.
   placerRequestId String?
   placerRequest   PlacerRequest? @relation(fields: [placerRequestId], references: [id], onDelete: SetNull)
+
+  // Set once a completed task's correspondence has been emailed to the CRM
+  // archive address (see ArchiveTaskDialog / POST /api/tasks/[id]/archive).
+  // The contact is stamped here (not just referenced via TaskContact) so this
+  // record reads correctly even if the contact is later renamed or removed.
+  archivedAt          DateTime?
+  archiveContactName  String?
+  archiveContactEmail String?
 
   notifications Notification[]
 
@@ -911,8 +927,23 @@ model Task {
   @@index([deletedAt])
 }
 
-// One in-app notification for one user. Written by the ping/assignment paths and
-// by the reminder sweep; read by the bell in the top bar. Deliberately denormal-
+// A CRM contact remembered from past "Archive to CRM" sends, so the dialog can
+// suggest the small, recurring set of requestors staff correspond with instead
+// of retyping the same name/email every time. Global (not per-user) since the
+// same handful of contacts are shared across staff.
+model TaskContact {
+  id         String   @id @default(cuid())
+  name       String
+  email      String   @unique
+  useCount   Int      @default(1)
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([lastUsedAt])
+}
+
+// One in-app notification for one user. Written by the assignment paths and by
+// the reminder sweep; read by the bell in the top bar. Deliberately denormal-
 // ized (title/body/href are stamped at write time) so the bell renders from one
 // cheap query and a notification still reads correctly after its subject changes.
 model Notification {

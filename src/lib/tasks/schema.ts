@@ -1,12 +1,12 @@
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
-// Pings — shared enums, labels and validation.
+// Tasks — shared enums, labels and validation.
 // ---------------------------------------------------------------------------
-// A "ping" is a task assigned to one internal teammate: a title, an optional due
-// date, and optionally the Placer AI request it's about. Assigning one notifies
-// them straight away; the reminder sweep notifies them again as the due date
-// nears and once it passes (src/lib/notifications/notify.ts).
+// A task is assigned to one internal teammate: a title, an optional due date,
+// and optionally the Placer AI request it's about. Assigning one notifies them
+// straight away; the reminder sweep notifies them again as the due date nears
+// and once it passes (src/lib/notifications/notify.ts).
 
 export const TaskStatusEnum = z.enum(["OPEN", "DONE"]);
 export type TaskStatusValue = z.infer<typeof TaskStatusEnum>;
@@ -97,15 +97,15 @@ const optionalDate = z
   .nullable()
   .optional();
 
-// Body accepted by POST /api/tasks. A ping always has someone to ping: the
+// Body accepted by POST /api/tasks. A task always has someone to assign to: the
 // assignee is required, and the API checks they are internal staff.
 export const CreateTaskSchema = z.object({
   title: z.string().trim().min(1, "What needs doing?"),
   details: optionalText,
   dueDate: optionalDate,
-  assignedToId: z.string().trim().min(1, "Choose who to ping."),
+  assignedToId: z.string().trim().min(1, "Choose who to assign this to."),
   priority: TaskPriorityEnum.default("NORMAL"),
-  /** The Placer AI request this ping is about, if any. */
+  /** The Placer AI request this task is about, if any. */
   placerRequestId: z.string().trim().nullable().optional(),
 });
 export type CreateTaskInput = z.infer<typeof CreateTaskSchema>;
@@ -121,3 +121,18 @@ export const UpdateTaskSchema = z.object({
   status: TaskStatusEnum.optional(),
 });
 export type UpdateTaskInput = z.infer<typeof UpdateTaskSchema>;
+
+// --- CRM archive -------------------------------------------------------------
+
+// A simple, forgiving email check — this only gates what we'll put in a mailto
+// link, not anything transactional, so it doesn't need to be exhaustive.
+const emailField = z.string().trim().toLowerCase().email("Enter a valid email address.");
+
+// Body accepted by POST /api/tasks/[id]/archive. Only valid once the task is
+// DONE (enforced by the route); records who the correspondence was archived to
+// and remembers the contact for next time (see TaskContact).
+export const ArchiveTaskSchema = z.object({
+  contactName: z.string().trim().min(1, "Who is this correspondence with?"),
+  contactEmail: emailField,
+});
+export type ArchiveTaskInput = z.infer<typeof ArchiveTaskSchema>;

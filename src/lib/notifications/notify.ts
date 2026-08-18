@@ -11,9 +11,9 @@ import type { NotificationKind } from "@prisma/client";
 // Everything here is in-app only; nothing is emailed or pushed. Two ways a
 // notification is written:
 //
-//   • immediately, when something is assigned (a ping, a Placer request handed
+//   • immediately, when something is assigned (a task, a Placer request handed
 //     to someone, a planned request dropping into the queue);
-//   • by the reminder sweep, which turns due dates into pings as they approach
+//   • by the reminder sweep, which turns due dates into notifications as they approach
 //     and again once they pass.
 //
 // The sweep is deliberately not a cron job — this app has no scheduler. It runs
@@ -131,7 +131,7 @@ let lastSweepAt = 0;
 const SWEEP_INTERVAL_MS = 60_000;
 
 /**
- * Turns approaching and passed due dates into notifications: open pings, and
+ * Turns approaching and passed due dates into notifications: open tasks, and
  * open Placer requests with an assignee and a needed-by date. Idempotent — a
  * given (kind, subject) pair is only ever written once, so it is safe to call
  * from any request path.

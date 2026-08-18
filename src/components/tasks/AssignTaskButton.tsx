@@ -1,15 +1,15 @@
 "use client";
 
-// Reusable "Ping" action: a button that opens a small popover to assign a task
-// to a teammate, optionally about a specific Placer AI request. Used on the
-// Placer request detail page and the planning calendar.
+// Reusable "Assign" action: a button that opens a small popover to assign a
+// task to a teammate, optionally about a specific Placer AI request. Used on
+// the Placer request detail page and the planning calendar.
 
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
-import { PingIcon } from "@/components/ui/icons";
+import { BoltIcon } from "@/components/ui/icons";
 import type { StaffOption } from "@/components/placer/PlacerBoard";
 
-export default function PingButton({
+export default function AssignTaskButton({
   staff,
   placerRequestId,
   defaultTitle,
@@ -47,7 +47,7 @@ export default function PingButton({
 
   async function send() {
     if (!assignedToId) {
-      toast.error("Choose who to ping.");
+      toast.error("Choose who to assign this to.");
       return;
     }
     if (!title.trim()) {
@@ -68,11 +68,11 @@ export default function PingButton({
       });
       if (!res.ok) throw new Error("Failed");
       const who = staff.find((s) => s.id === assignedToId)?.label ?? "them";
-      toast.success(`Pinged ${who}.`);
+      toast.success(`Assigned to ${who}.`);
       setOpen(false);
       setDueDate("");
     } catch {
-      toast.error("Could not send the ping. Please try again.");
+      toast.error("Could not assign the task. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -85,11 +85,11 @@ export default function PingButton({
         className={className ?? "btn-secondary h-8 py-1 text-xs"}
         onClick={toggleOpen}
       >
-        <PingIcon className="h-3.5 w-3.5" /> Ping
+        <BoltIcon className="h-3.5 w-3.5" /> Assign
       </button>
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-72 space-y-2.5 rounded-xl border border-line bg-surface p-3 shadow-xl">
-          <div className="text-xs font-semibold text-foreground">Ping a teammate</div>
+          <div className="text-xs font-semibold text-foreground">Assign a task</div>
           <input
             className="input h-8 py-1 text-xs"
             value={title}
@@ -118,7 +118,7 @@ export default function PingButton({
               Cancel
             </button>
             <button type="button" className="btn-primary h-7 py-0.5 text-xs" onClick={send} disabled={busy}>
-              {busy ? "Sending…" : "Send ping"}
+              {busy ? "Assigning…" : "Assign task"}
             </button>
           </div>
         </div>

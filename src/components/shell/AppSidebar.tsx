@@ -15,7 +15,7 @@ import {
   UsersIcon,
   LogoutIcon,
   CalendarIcon,
-  PingIcon,
+  TaskListIcon,
 } from "@/components/ui/icons";
 
 // Nav data crosses the server -> client boundary, so items carry a plain string
@@ -29,7 +29,7 @@ export type SideIconKey =
   | "reports"
   | "placer"
   | "calendar"
-  | "ping"
+  | "tasks"
   | "users";
 
 const ICONS: Record<SideIconKey, ComponentType<SVGProps<SVGSVGElement>>> = {
@@ -41,7 +41,7 @@ const ICONS: Record<SideIconKey, ComponentType<SVGProps<SVGSVGElement>>> = {
   reports: ReportsIcon,
   placer: PlacerIcon,
   calendar: CalendarIcon,
-  ping: PingIcon,
+  tasks: TaskListIcon,
   users: UsersIcon,
 };
 

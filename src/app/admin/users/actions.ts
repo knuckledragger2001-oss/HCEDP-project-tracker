@@ -169,3 +169,31 @@ export async function restoreUser(userId: string): Promise<ActionResult> {
   revalidatePath("/admin/users");
   return { ok: true };
 }
+
+// Who this user's "Archive to CRM" button auto-CCs (see ArchiveTaskDialog) —
+// typically a coverage partner, e.g. two staff who cover each other's
+// correspondence. Unlike role/disable/delete this is safe to set on your own
+// row, since it carries no access implications.
+export async function setCcPartner(
+  userId: string,
+  ccPartnerId: string | null,
+): Promise<ActionResult> {
+  await requireAdmin();
+  if (!userId) return { ok: false, error: "User not found." };
+  if (ccPartnerId === userId) {
+    return { ok: false, error: "A user can't be their own CC partner." };
+  }
+  if (ccPartnerId) {
+    const partner = await prisma.user.findUnique({
+      where: { id: ccPartnerId },
+      select: { role: true, deletedAt: true },
+    });
+    if (!partner || partner.deletedAt || partner.role === "PARTNER") {
+      return { ok: false, error: "The CC partner must be internal staff." };
+    }
+  }
+
+  await prisma.user.update({ where: { id: userId }, data: { ccPartnerId } });
+  revalidatePath("/admin/users");
+  return { ok: true };
+}

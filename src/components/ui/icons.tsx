@@ -240,10 +240,31 @@ export function CalendarIcon(props: IconProps) {
   );
 }
 
-export function PingIcon(props: IconProps) {
+export function BoltIcon(props: IconProps) {
   return (
     <svg {...base(props)}>
       <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
+    </svg>
+  );
+}
+
+export function TaskListIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M9 6h11M9 12h11M9 18h11" />
+      <path d="m3.5 6 1.2 1.2L6.8 5" />
+      <path d="m3.5 12 1.2 1.2L6.8 11" />
+      <path d="m3.5 18 1.2 1.2L6.8 17" />
+    </svg>
+  );
+}
+
+export function ArchiveIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <rect x="3" y="4" width="18" height="4" rx="1" />
+      <path d="M4.5 8v10a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5V8" />
+      <path d="M10 12.5h4" />
     </svg>
   );
 }

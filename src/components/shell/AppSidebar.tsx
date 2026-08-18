@@ -14,6 +14,8 @@ import {
   PlacerIcon,
   UsersIcon,
   LogoutIcon,
+  CalendarIcon,
+  PingIcon,
 } from "@/components/ui/icons";
 
 // Nav data crosses the server -> client boundary, so items carry a plain string
@@ -26,6 +28,8 @@ export type SideIconKey =
   | "dashboard"
   | "reports"
   | "placer"
+  | "calendar"
+  | "ping"
   | "users";
 
 const ICONS: Record<SideIconKey, ComponentType<SVGProps<SVGSVGElement>>> = {
@@ -36,6 +40,8 @@ const ICONS: Record<SideIconKey, ComponentType<SVGProps<SVGSVGElement>>> = {
   dashboard: DashboardIcon,
   reports: ReportsIcon,
   placer: PlacerIcon,
+  calendar: CalendarIcon,
+  ping: PingIcon,
   users: UsersIcon,
 };
 
@@ -69,8 +75,15 @@ export default function AppSidebar({
   user: SidebarUser;
 }) {
   const pathname = usePathname();
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+  // The most specific matching href wins, so a nested route (e.g.
+  // /placer/calendar) only lights up its own item, not its parent's too.
+  const allHrefs = groups.flatMap((g) => g.items.map((i) => i.href));
+  const matches = (href: string) =>
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  const bestHref = allHrefs
+    .filter(matches)
+    .sort((a, b) => b.length - a.length)[0];
+  const isActive = (href: string) => href === bestHref;
 
   return (
     <aside className="sticky top-0 flex h-screen flex-col overflow-hidden border-r border-line bg-surface">

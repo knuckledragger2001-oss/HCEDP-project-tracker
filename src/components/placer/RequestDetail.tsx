@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { TrashIcon } from "@/components/ui/icons";
+import PingButton from "@/components/tasks/PingButton";
 import {
   REQUEST_STATUSES,
   type RequestStatusValue,
@@ -24,9 +25,11 @@ export interface DetailValues {
 export default function RequestDetail({
   request,
   staff,
+  placeName,
 }: {
   request: DetailValues;
   staff: StaffOption[];
+  placeName: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -155,15 +158,22 @@ export default function RequestDetail({
       </div>
 
       <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={onDelete}
-          className="btn-danger"
-          disabled={busy}
-        >
-          <TrashIcon className="text-sm" />
-          Delete
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onDelete}
+            className="btn-danger"
+            disabled={busy}
+          >
+            <TrashIcon className="text-sm" />
+            Delete
+          </button>
+          <PingButton
+            staff={staff}
+            placerRequestId={request.id}
+            defaultTitle={`Follow up: ${placeName}`}
+          />
+        </div>
         <button
           type="button"
           onClick={onSave}

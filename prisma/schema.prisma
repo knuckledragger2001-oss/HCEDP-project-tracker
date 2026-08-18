@@ -56,14 +56,63 @@ enum PlacerReportType {
 }
 
 // Position of a Placer AI request in the internal fulfillment queue. Drives the
-// board columns on /placer. DECLINED is terminal and mirrors a "no submission":
-// we chose not to fulfill it.
+// board columns on /placer. PLANNED sits ahead of the queue proper: a request a
+// partner has told us is coming, parked on the planning calendar until its
+// queueOnDate arrives (see releaseDuePlannedRequests in src/lib/placer/planning.ts),
+// at which point it becomes SUBMITTED like any other. DECLINED is terminal and
+// mirrors a "no submission": we chose not to fulfill it.
 enum PlacerRequestStatus {
+  PLANNED
   SUBMITTED
   IN_REVIEW
   IN_PROGRESS
   COMPLETED
   DECLINED
+}
+
+// How a recurring Placer plan repeats. QUARTERLY and ANNUAL are month-stepped
+// variants of MONTHLY (3 and 12 months); WEEKLY steps in weeks. See
+// src/lib/placer/recurrence.ts, which is the single implementation of the math.
+enum PlacerRecurrence {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+// Whether a recurring plan lands on a fixed day of the month ("the 15th") or on
+// an nth weekday ("the third Friday"). Ignored for WEEKLY, which always repeats
+// on its own weekday.
+enum PlacerRecurrenceMode {
+  DAY_OF_MONTH
+  NTH_WEEKDAY
+}
+
+// State of a ping (an assigned task). DONE is terminal but reversible — a task
+// can be reopened, which clears completedAt.
+enum TaskStatus {
+  OPEN
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+// Why a user was notified. Every notification is in-app only (the bell in the
+// top bar); nothing leaves the building. TASK_* concern pings, REQUEST_* concern
+// Placer AI requests.
+enum NotificationKind {
+  TASK_ASSIGNED
+  TASK_DUE_SOON
+  TASK_OVERDUE
+  TASK_COMPLETED
+  REQUEST_ASSIGNED
+  REQUEST_DUE_SOON
+  REQUEST_OVERDUE
+  REQUEST_RELEASED
 }
 
 // Stages of the pre-project leads pipeline. A lead is a prospect we are working
@@ -642,6 +691,17 @@ model User {
   placerRequestsSubmitted PlacerRequest[] @relation("PlacerSubmittedBy")
   placerRequestsAssigned  PlacerRequest[] @relation("PlacerAssignedTo")
 
+  // Recurring Placer plans this user set up / is the standing owner of.
+  placerSeriesCreated  PlacerRequestSeries[] @relation("PlacerSeriesCreatedBy")
+  placerSeriesAssigned PlacerRequestSeries[] @relation("PlacerSeriesAssignedTo")
+
+  // Pings: tasks assigned to this user and tasks this user assigned to others.
+  tasksAssigned Task[] @relation("TaskAssignedTo")
+  tasksCreated  Task[] @relation("TaskCreatedBy")
+
+  // In-app notifications addressed to this user (the bell in the top bar).
+  notifications Notification[]
+
   @@index([email])
   @@index([role])
 }
@@ -694,17 +754,39 @@ model PlacerRequest {
   resultNote    String?             @db.Text
   completedAt   DateTime?
 
+  // --- Planning -------------------------------------------------------------
+  // A PLANNED request is one a partner has told us is coming. It sits on the
+  // planning calendar (dateRangeStart is the event date) until queueOnDate, when
+  // the release sweep flips it to SUBMITTED and stamps releasedAt. Both are null
+  // on a request that arrived through the normal submit path.
+  queueOnDate DateTime?
+  releasedAt  DateTime?
+
+  // Set when this row was generated from a recurring plan. occurrenceDate is the
+  // date in the series that produced it; unique per series so re-running the
+  // generator can never double-create an occurrence.
+  seriesId       String?
+  series         PlacerRequestSeries? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  occurrenceDate DateTime?
+
+  // Pings and notifications that point at this request.
+  tasks         Task[]
+  notifications Notification[]
+
   // Soft delete with the same restore-from-toast contract as Project/Lead/Site.
   deletedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([seriesId, occurrenceDate])
   @@index([city])
   @@index([status])
   @@index([assignedToId])
   @@index([submittedById])
   @@index([deletedAt])
+  @@index([queueOnDate])
+  @@index([dateRangeStart])
 }
 
 // A server-side session. The browser only holds a signed cookie carrying the
@@ -718,4 +800,144 @@ model Session {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Placer AI planning — recurring plans
+// ---------------------------------------------------------------------------
+
+// A standing, repeating Placer AI report ("downtown foot traffic, the third
+// Friday of every month"). The series is the template; the calendar and the
+// queue only ever deal in the PLANNED PlacerRequest rows it materializes, so a
+// generated occurrence can be edited, moved or deleted on its own without
+// disturbing the pattern. See src/lib/placer/recurrence.ts for the date math and
+// materializeSeries() in src/lib/placer/planning.ts for the generator.
+model PlacerRequestSeries {
+  id   String      @id @default(cuid())
+  city PartnerCity
+
+  // What each occurrence asks for — copied onto every generated request.
+  placeName       String
+  locationAddress String?
+  reportType      PlacerReportType
+  reportTypeOther String?
+  purpose         String?          @db.Text
+
+  // The pattern. interval is "every N" of the unit implied by frequency (so
+  // QUARTERLY with interval 1 is every 3 months). dayOfMonth is used in
+  // DAY_OF_MONTH mode (clamped to short months); weekday + weekOfMonth in
+  // NTH_WEEKDAY mode (weekOfMonth -1 = last). WEEKLY ignores mode and repeats on
+  // startDate's weekday.
+  frequency   PlacerRecurrence
+  interval    Int                  @default(1)
+  mode        PlacerRecurrenceMode @default(DAY_OF_MONTH)
+  dayOfMonth  Int?
+  weekday     Int? // 0 = Sunday … 6 = Saturday
+  weekOfMonth Int? // 1–4, or -1 for "last"
+
+  // Window the pattern runs over. startDate is also the anchor the month/week
+  // stepping counts from. endDate is optional ("forever").
+  startDate DateTime
+  endDate   DateTime?
+
+  // Days after the occurrence (the event) before the request should hit the
+  // queue — Placer data is typically available about a week later.
+  leadDays Int @default(7)
+
+  // Standing owner: every generated occurrence is assigned to them, and they are
+  // pinged when it drops into the queue.
+  assignedToId String?
+  assignedTo   User?   @relation("PlacerSeriesAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  createdById String
+  createdBy   User   @relation("PlacerSeriesCreatedBy", fields: [createdById], references: [id])
+
+  // Paused series stop generating new occurrences; already-generated ones stay.
+  active           Boolean   @default(true)
+  // How far ahead occurrences have been materialized, so the generator only ever
+  // walks forward.
+  generatedThrough DateTime?
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  requests PlacerRequest[]
+
+  @@index([city])
+  @@index([active])
+  @@index([deletedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Pings — assigned tasks and in-app notifications
+// ---------------------------------------------------------------------------
+
+// A ping: a piece of work assigned to one internal user, optionally with a due
+// date and optionally attached to a Placer AI request. Assigning one notifies
+// the assignee immediately; the reminder sweep notifies them again as the due
+// date approaches and once it passes (see src/lib/notifications/notify.ts).
+model Task {
+  id      String  @id @default(cuid())
+  title   String
+  details String? @db.Text
+
+  dueDate     DateTime?
+  status      TaskStatus   @default(OPEN)
+  priority    TaskPriority @default(NORMAL)
+  completedAt DateTime?
+
+  assignedToId String
+  assignedTo   User   @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("TaskCreatedBy", fields: [createdById], references: [id])
+
+  // Optional subject: the Placer request this ping is about. Deleting the
+  // request leaves the ping standing but unlinked.
+  placerRequestId String?
+  placerRequest   PlacerRequest? @relation(fields: [placerRequestId], references: [id], onDelete: SetNull)
+
+  notifications Notification[]
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([assignedToId, status])
+  @@index([createdById])
+  @@index([dueDate])
+  @@index([placerRequestId])
+  @@index([deletedAt])
+}
+
+// One in-app notification for one user. Written by the ping/assignment paths and
+// by the reminder sweep; read by the bell in the top bar. Deliberately denormal-
+// ized (title/body/href are stamped at write time) so the bell renders from one
+// cheap query and a notification still reads correctly after its subject changes.
+model Notification {
+  id     String           @id @default(cuid())
+  userId String
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind   NotificationKind
+
+  title String
+  body  String?
+  /// Where clicking the notification goes, e.g. "/tasks" or "/placer/<id>".
+  href  String?
+
+  // What it is about. Both are optional and both are cleared (SetNull) if the
+  // subject is hard-deleted; the stamped title/body keep the entry readable.
+  taskId          String?
+  task            Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  placerRequestId String?
+  placerRequest   PlacerRequest? @relation(fields: [placerRequestId], references: [id], onDelete: SetNull)
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@index([kind, taskId])
+  @@index([kind, placerRequestId])
 }

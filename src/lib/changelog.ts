@@ -34,6 +34,33 @@ export interface ChangelogEntry {
 // Newest entry first. Add new releases at the top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "2026.08.18",
+    date: "2026-08-18",
+    title: "Plan future Placer AI requests, and ping a teammate",
+    items: [
+      {
+        tag: "new",
+        text:
+          "A new Placer calendar (in the sidebar, next to Placer requests) lets you plan Placer AI requests a city has told you are coming — a parade, a festival, whatever — before they're ready to work. Add a plan on its date, and it drops into the live queue automatically a set number of days later (7 by default, since Placer data usually isn't available sooner). Drag a plan to a different day to reschedule it, or click it to edit, release it into the queue early, or remove it.",
+      },
+      {
+        tag: "new",
+        text:
+          "Plans can repeat — weekly, monthly, quarterly, or annually, either on a fixed day of the month or a specific weekday like \"the third Friday.\" Each occurrence is generated onto the calendar automatically; pause or retire a recurring plan anytime from the \"Recurring plans\" panel.",
+      },
+      {
+        tag: "new",
+        text:
+          "You can now \"Ping\" a teammate to assign them something, with an optional due date — from the new bell icon's \"New ping\" button, from any Placer request, or from a plan on the calendar. They're notified right away, and again as the due date approaches and if it passes. Your pings live on the new \"My pings\" page.",
+      },
+      {
+        tag: "new",
+        text:
+          "A notification bell in the top bar shows pings sent to you, requests assigned to you, and due-date reminders, so nothing needed from you gets missed.",
+      },
+    ],
+  },
+  {
     version: "2026.08.11-2",
     date: "2026-08-11",
     title: "Demand-for-space charts on the dashboard",

@@ -144,6 +144,7 @@ export default async function PlacerRequestDetailPage({
             resultNote: request.resultNote ?? "",
           }}
           staff={staffOptions}
+          placeName={request.placeName}
         />
       </section>
     </div>

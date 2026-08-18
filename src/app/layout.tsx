@@ -11,6 +11,7 @@ import AppSidebar, {
 } from "@/components/shell/AppSidebar";
 import AppProviders from "@/components/ui/AppProviders";
 import WhatsNew from "@/components/whatsnew/WhatsNew";
+import NotificationBell from "@/components/notifications/NotificationBell";
 import { CHANGELOG, entriesNewerThan } from "@/lib/changelog";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -41,6 +42,8 @@ const NAV_GROUPS: SideGroup[] = [
       { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
       { href: "/reports", label: "Reports", icon: "reports" },
       { href: "/placer", label: "Placer requests", icon: "placer" },
+      { href: "/placer/calendar", label: "Placer calendar", icon: "calendar" },
+      { href: "/tasks", label: "My pings", icon: "ping" },
     ],
   },
 ];
@@ -69,8 +72,10 @@ function sectionTitle(pathname: string): string {
   if (pathname.startsWith("/leads")) return "Leads";
   if (pathname.startsWith("/dashboard")) return "Dashboard";
   if (pathname.startsWith("/reports")) return "Reports";
+  if (pathname.startsWith("/placer/calendar")) return "Placer calendar";
   if (pathname.startsWith("/placer") || pathname.startsWith("/requests"))
     return "Placer requests";
+  if (pathname.startsWith("/tasks")) return "My pings";
   if (pathname.startsWith("/admin/users")) return "Users";
   return "HCEDP";
 }
@@ -143,6 +148,7 @@ export default async function RootLayout({
                   {sectionTitle(pathname)}
                 </span>
                 <div className="flex items-center gap-3">
+                  {!partner && <NotificationBell />}
                   {!partner && (
                     <WhatsNew
                       entries={CHANGELOG}

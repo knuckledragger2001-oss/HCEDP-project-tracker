@@ -20,7 +20,9 @@ export default async function PlacerQueuePage() {
 
   const [requests, staff] = await Promise.all([
     prisma.placerRequest.findMany({
-      where: { deletedAt: null },
+      // PLANNED requests live on the planning calendar (/placer/calendar), not
+      // the fulfillment board — they haven't reached the queue yet.
+      where: { deletedAt: null, status: { not: "PLANNED" } },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,

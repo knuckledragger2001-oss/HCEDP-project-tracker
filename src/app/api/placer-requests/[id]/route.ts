@@ -1,25 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, isInternal } from "@/lib/auth/session";
+import { isInternal } from "@/lib/auth/session";
+import { requireInternalApi } from "@/lib/auth/api";
+import { notify, clearRequestReminders } from "@/lib/notifications/notify";
+import { formatDate } from "@/lib/format";
 import {
   UpdatePlacerRequestSchema,
   STATUSES_REQUIRING_REASON,
+  partnerCityLabel,
   type RequestStatusValue,
 } from "@/lib/placer/schema";
 import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
-
-// Every mutation here is internal-only: partners submit and read, staff triage.
-async function requireInternalApi() {
-  const user = await getCurrentUser();
-  if (!user) return { error: NextResponse.json({ error: "Not signed in." }, { status: 401 }) };
-  if (!isInternal(user.role)) {
-    return { error: NextResponse.json({ error: "Staff only." }, { status: 403 }) };
-  }
-  return { user };
-}
 
 // PATCH /api/placer-requests/[id] — internal triage: status, assignee, notes,
 // result. Any subset of fields; the board sends just { status }.
@@ -101,6 +95,29 @@ export async function PATCH(
     data,
     select: { id: true, status: true, assignedToId: true },
   });
+
+  // Ping the new owner. Only on an actual change of hands, and never when
+  // someone assigns a request to themselves.
+  if (updated.assignedToId && updated.assignedToId !== existing.assignedToId) {
+    await notify(
+      {
+        userId: updated.assignedToId,
+        kind: "REQUEST_ASSIGNED",
+        title: `Assigned to you: ${existing.placeName}`,
+        body: `${partnerCityLabel(existing.city)}${
+          existing.neededByDate
+            ? ` · needed ${formatDate(existing.neededByDate)}`
+            : ""
+        }`,
+        href: `/placer/${id}`,
+        placerRequestId: id,
+      },
+      gate.user.id,
+    );
+    // The new owner starts with a clean slate of due-date reminders.
+    await clearRequestReminders(id);
+  }
+
   return NextResponse.json({ request: updated });
 }
 

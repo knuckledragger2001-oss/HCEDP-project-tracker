@@ -14,7 +14,9 @@ import {
 } from "./helpers";
 
 type View = "board" | "table";
-const VIEW_KEY = "hcedp.pipeline.view";
+const PREFS_KEY = "hcedp.pipeline.prefs";
+const DATE_MODES: string[] = ["all", "month", "quarter", "fy", "custom"];
+const ARCHIVE_MODES: string[] = ["active", "archived", "all"];
 
 // The pipeline workspace: shared filters and a Board / Table toggle over one
 // filtered dataset. The board and the table are two lenses on the same projects,
@@ -34,19 +36,41 @@ export default function PipelineWorkspace({
   const [customEnd, setCustomEnd] = useState("");
   const [query, setQuery] = useState("");
 
-  // Remember the chosen view across visits. This must be read after mount, not
-  // in a lazy initializer: the server always renders the default ("board"), so
-  // adopting the saved value on the client has to happen post-hydration to keep
-  // the first client render identical to the server's.
+  // Remember the view and filter selections across visits. This must be read
+  // after mount, not in a lazy initializer: the server always renders the
+  // defaults, so adopting saved values on the client has to happen
+  // post-hydration to keep the first client render identical to the server's.
+  // The search box is deliberately not saved, so a stale search never hides
+  // projects on the next visit.
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
   useEffect(() => {
-    const saved = localStorage.getItem(VIEW_KEY);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration of a persisted preference; no cascading render loop
-    if (saved === "board" || saved === "table") setView(saved);
+    try {
+      const saved = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}");
+      /* eslint-disable react-hooks/set-state-in-effect -- one-time hydration of persisted preferences; no cascading render loop */
+      if (saved.view === "board" || saved.view === "table") setView(saved.view);
+      if (DATE_MODES.includes(saved.dateMode)) setDateMode(saved.dateMode);
+      if (ARCHIVE_MODES.includes(saved.archiveMode)) setArchiveMode(saved.archiveMode);
+      if (typeof saved.customStart === "string") setCustomStart(saved.customStart);
+      if (typeof saved.customEnd === "string") setCustomEnd(saved.customEnd);
+      /* eslint-enable react-hooks/set-state-in-effect */
+    } catch {
+      // Storage unavailable or corrupt: fall back to the defaults.
+    }
+    setPrefsLoaded(true);
   }, []);
-  function chooseView(v: View) {
-    setView(v);
-    localStorage.setItem(VIEW_KEY, v);
-  }
+  useEffect(() => {
+    // Wait for the load above so the defaults never overwrite saved choices.
+    if (!prefsLoaded) return;
+    try {
+      localStorage.setItem(
+        PREFS_KEY,
+        JSON.stringify({ view, dateMode, archiveMode, customStart, customEnd }),
+      );
+    } catch {
+      // Ignore: preferences just won't persist.
+    }
+  }, [prefsLoaded, view, dateMode, archiveMode, customStart, customEnd]);
+  const chooseView = setView;
 
   const visible = useMemo(() => {
     const { start, end } = periodBounds(dateMode, customStart, customEnd);

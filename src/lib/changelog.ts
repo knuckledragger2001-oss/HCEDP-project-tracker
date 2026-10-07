@@ -34,6 +34,17 @@ export interface ChangelogEntry {
 // Newest entry first. Add new releases at the top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "2026.10.07",
+    date: "2026-10-07",
+    title: "The pipeline remembers how you like it",
+    items: [
+      {
+        tag: "improved",
+        text: "The pipeline page now remembers your Board or Table choice and your Received and Show filters, so it opens just as you left it next time. Your search text is not saved.",
+      },
+    ],
+  },
+  {
     version: "2026.08.18",
     date: "2026-08-18",
     title: "Plan future Placer AI requests, and assign tasks to teammates",

@@ -1,8 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { config, isAnthropicConfigured } from "@/lib/config";
 import {
   ParsedProjectSchema,
-  parsedProjectJsonSchema,
+  ExtractedProjectSchema,
   type ParsedProject,
 } from "./schema";
 import { filesToContentBlocks, type IncomingFile } from "./attachments";
@@ -20,7 +21,7 @@ const SYSTEM_PROMPT = `You are an intake analyst for the Hays Caldwell Economic 
 
 RFIs are messy and inconsistent. Figures arrive in varying units, requirements may be time-phased, and some needs are qualitative. Extract everything you can and DO NOT invent facts. If a value is missing, leave it null.
 
-Call the record_rfi tool exactly once with your extraction.
+Return your extraction as the structured response.
 
 GENERAL RULES
 - codename: the project's anonymized codename (e.g. "Project Zero Sugar").
@@ -88,29 +89,29 @@ export async function parseRfi(input: ParseRfiInput): Promise<ParseRfiResult> {
     ...attachmentBlocks,
   ];
 
-  const tool: Anthropic.Tool = {
-    name: "record_rfi",
-    description:
-      "Record the structured RFI extraction. Call exactly once with all fields you can determine.",
-    input_schema: parsedProjectJsonSchema() as Anthropic.Tool.InputSchema,
-  };
-
-  const response = await client.messages.create({
+  // Structured outputs, not a forced tool call: newer models (Sonnet 5.5+)
+  // reject tool_choice "tool"/"any" with a 400, and the extraction only ever
+  // needed a schema-valid JSON object back anyway.
+  const response = await client.messages.parse({
     model,
     max_tokens: 8000,
     system: SYSTEM_PROMPT,
-    tools: [tool],
-    tool_choice: { type: "tool", name: "record_rfi" },
     messages: [{ role: "user", content: userContent }],
+    output_config: { format: zodOutputFormat(ExtractedProjectSchema) },
   });
 
-  const toolUse = response.content.find(
-    (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
-  );
-  if (!toolUse) {
-    throw new Error("Claude did not return a structured record_rfi result.");
+  if (response.stop_reason === "refusal") {
+    throw new Error(
+      `Claude declined to process this RFI${
+        response.stop_details?.category ? ` (${response.stop_details.category})` : ""
+      }. Enter it manually instead.`,
+    );
+  }
+  if (!response.parsed_output) {
+    throw new Error("Claude did not return a structured RFI extraction.");
   }
 
-  const parsed = ParsedProjectSchema.parse(toolUse.input);
+  // Re-parse through the full schema so legacy fields get their defaults.
+  const parsed = ParsedProjectSchema.parse(response.parsed_output);
   return { proposal: parsed, model };
 }

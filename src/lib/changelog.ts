@@ -34,6 +34,18 @@ export interface ChangelogEntry {
 // Newest entry first. Add new releases at the top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "2026.10.07-2",
+    date: "2026-10-07",
+    title: "RFI intake now uses a newer Claude model",
+    items: [
+      {
+        tag: "improved",
+        text:
+          "Automated RFI parsing now runs on Claude Sonnet 5.5 (previously Sonnet 4.6), including when you tick the box for a difficult document. You use intake exactly as before; if you notice the extracted fields look different from past RFIs, let us know so we can tune it.",
+      },
+    ],
+  },
+  {
     version: "2026.10.07",
     date: "2026-10-07",
     title: "The pipeline remembers how you like it",

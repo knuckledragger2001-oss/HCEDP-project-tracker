@@ -141,7 +141,7 @@ export const ParsedProjectSchema = z.object({
   // Legacy relations. No longer extracted by the parser or shown in the review
   // form (jobs → `jobs`; utilities → the *Needs text fields), but kept in the
   // schema so existing proposals/rows still validate. Excluded from the tool's
-  // extraction JSON schema — see parsedProjectJsonSchema().
+  // extraction schema — see ExtractedProjectSchema.
   jobPhases: z.array(JobPhaseSchema).optional().default([]),
   utilities: z.array(UtilityRequirementSchema).optional().default([]),
 
@@ -164,16 +164,13 @@ export const StagedAttachmentSchema = z.object({
 });
 export type StagedAttachment = z.infer<typeof StagedAttachmentSchema>;
 
-// JSON Schema handed to the Anthropic tool. Derived from the zod schema so the
-// two never drift. The legacy `jobPhases`/`utilities` relations are omitted so
-// the model extracts the new single `jobs` number and free-text utility fields
-// instead of a phased/normalized breakdown.
-export function parsedProjectJsonSchema() {
-  return z.toJSONSchema(
-    ParsedProjectSchema.omit({ jobPhases: true, utilities: true }),
-    { target: "draft-2020-12" },
-  );
-}
+// Schema the model is asked to fill. The legacy `jobPhases`/`utilities`
+// relations are omitted so the model extracts the new single `jobs` number and
+// free-text utility fields instead of a phased/normalized breakdown.
+export const ExtractedProjectSchema = ParsedProjectSchema.omit({
+  jobPhases: true,
+  utilities: true,
+});
 
 // Blank proposal used when the parser is unavailable (e.g. no API key) so the
 // user can still fill the review form manually.

@@ -3,11 +3,17 @@
 export const config = {
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY ?? "",
-    // Single config value for the routine parsing model — easy to change.
-    model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
-    // Optional more-capable model for difficult documents.
+    // Anthropic has no "always the newest Sonnet" alias — each release gets a
+    // new model ID. To move to a newer model, set ANTHROPIC_MODEL in the host
+    // environment (no deploy of code needed); these are only the fallbacks.
+    // Check that a new generation still supports structured outputs
+    // (output_config.format) before switching — see src/lib/anthropic/parser.ts.
+    model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5-5",
+    // Optional separate model for difficult documents (the "high effort" box on
+    // intake). Defaults to the same Sonnet; point it at a stronger model via
+    // ANTHROPIC_MODEL_HIGH_EFFORT if that ever proves worthwhile.
     highEffortModel:
-      process.env.ANTHROPIC_MODEL_HIGH_EFFORT ?? "claude-opus-4-8",
+      process.env.ANTHROPIC_MODEL_HIGH_EFFORT ?? "claude-sonnet-5-5",
   },
   storage: {
     driver: process.env.STORAGE_DRIVER ?? "local",

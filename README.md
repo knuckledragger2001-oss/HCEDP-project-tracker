@@ -107,8 +107,8 @@ Then open <http://localhost:3000>.
 | ----------------------------- | -------- | ------------------------------------------------------------------------ |
 | `DATABASE_URL`                | yes      | PostgreSQL connection string                                             |
 | `ANTHROPIC_API_KEY`           | no\*     | Enables automated RFI parsing. **Read from env only — never committed.** |
-| `ANTHROPIC_MODEL`             | no       | Pin the parsing model. **Unset = automatically the newest Sonnet**      |
-| `ANTHROPIC_MODEL_HIGH_EFFORT` | no       | Pin a model for "difficult doc" parsing. Unset = newest Sonnet          |
+| `ANTHROPIC_MODEL`             | no       | Model for routine parsing (default `claude-sonnet-5-5`)                  |
+| `ANTHROPIC_MODEL_HIGH_EFFORT` | no       | Model for difficult docs (default `claude-sonnet-5-5`)                    |
 | `STORAGE_DRIVER`              | no       | `local` (default). Future: `s3` / `blob`                                 |
 | `STORAGE_LOCAL_DIR`           | no       | Where local uploads are written (default `./storage-uploads`)            |
 | `ADMIN_EMAIL`                 | yes\*\*  | Email of the bootstrap admin account (see Authentication below)          |

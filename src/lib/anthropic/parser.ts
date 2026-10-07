@@ -7,7 +7,6 @@ import {
   type ParsedProject,
 } from "./schema";
 import { filesToContentBlocks, type IncomingFile } from "./attachments";
-import { FALLBACK_SONNET, demoteModel, resolveParserModel } from "./models";
 
 export class AnthropicNotConfiguredError extends Error {
   constructor() {
@@ -75,7 +74,9 @@ export async function parseRfi(input: ParseRfiInput): Promise<ParseRfiResult> {
   }
 
   const client = new Anthropic({ apiKey: config.anthropic.apiKey });
-  const resolved = await resolveParserModel(client, input.highEffort ?? false);
+  const model = input.highEffort
+    ? config.anthropic.highEffortModel
+    : config.anthropic.model;
 
   const attachmentBlocks = await filesToContentBlocks(input.files ?? []);
 
@@ -91,35 +92,13 @@ export async function parseRfi(input: ParseRfiInput): Promise<ParseRfiResult> {
   // Structured outputs, not a forced tool call: newer models (Sonnet 5.5+)
   // reject tool_choice "tool"/"any" with a 400, and the extraction only ever
   // needed a schema-valid JSON object back anyway.
-  const request = (model: string) =>
-    client.messages.parse({
-      model,
-      max_tokens: 8000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userContent }],
-      output_config: { format: zodOutputFormat(ExtractedProjectSchema) },
-    });
-
-  let model = resolved.model;
-  let response;
-  try {
-    response = await request(model);
-  } catch (err) {
-    // An automatically discovered model is brand new and unreviewed. If it
-    // rejects the request itself (400/404), fall back to the last Sonnet known to
-    // work rather than failing intake. A pinned model fails loudly instead.
-    const rejected =
-      err instanceof Anthropic.BadRequestError ||
-      err instanceof Anthropic.NotFoundError;
-    if (resolved.pinned || !rejected || model === FALLBACK_SONNET) throw err;
-    console.warn(
-      `[anthropic] ${model} rejected the RFI request (${err.message}); retrying on ${FALLBACK_SONNET}.`,
-    );
-    const rejectedModel = model;
-    model = FALLBACK_SONNET;
-    response = await request(model);
-    demoteModel(rejectedModel);
-  }
+  const response = await client.messages.parse({
+    model,
+    max_tokens: 8000,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userContent }],
+    output_config: { format: zodOutputFormat(ExtractedProjectSchema) },
+  });
 
   if (response.stop_reason === "refusal") {
     throw new Error(

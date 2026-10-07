@@ -3,17 +3,13 @@
 export const config = {
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY ?? "",
-    // Anthropic has no "always the newest Sonnet" alias — each release gets a
-    // new model ID. To move to a newer model, set ANTHROPIC_MODEL in the host
-    // environment (no deploy of code needed); these are only the fallbacks.
-    // Check that a new generation still supports structured outputs
-    // (output_config.format) before switching — see src/lib/anthropic/parser.ts.
-    model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5-5",
-    // Optional separate model for difficult documents (the "high effort" box on
-    // intake). Defaults to the same Sonnet; point it at a stronger model via
-    // ANTHROPIC_MODEL_HIGH_EFFORT if that ever proves worthwhile.
-    highEffortModel:
-      process.env.ANTHROPIC_MODEL_HIGH_EFFORT ?? "claude-sonnet-5-5",
+    // Optional pins. Left unset (the normal case), RFI parsing uses whatever the
+    // newest Sonnet is, discovered automatically — see lib/anthropic/models.ts.
+    // Set either variable to force one exact model ID instead, e.g. to hold back
+    // a release that misbehaves or to give difficult documents a stronger model.
+    modelOverride: process.env.ANTHROPIC_MODEL?.trim() || null,
+    highEffortModelOverride:
+      process.env.ANTHROPIC_MODEL_HIGH_EFFORT?.trim() || null,
   },
   storage: {
     driver: process.env.STORAGE_DRIVER ?? "local",

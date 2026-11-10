@@ -34,6 +34,21 @@ export interface ChangelogEntry {
 // Newest entry first. Add new releases at the top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "2026.11.10",
+    date: "2026-11-10",
+    title: "RFI parsing works again",
+    items: [
+      {
+        tag: "fixed",
+        text: "Pasting an RFI on the New RFI intake page was failing with \"Failed to parse RFI\" for every email. Claude now reads RFIs and fills in the review form again.",
+      },
+      {
+        tag: "improved",
+        text: "If parsing ever fails, the error box now says why, instead of pointing to server logs. You can still use \"Enter manually\" to keep working.",
+      },
+    ],
+  },
+  {
     version: "2026.10.07-2",
     date: "2026-10-07",
     title: "RFI intake always uses the newest Claude Sonnet",

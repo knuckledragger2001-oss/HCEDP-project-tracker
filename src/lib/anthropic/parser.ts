@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { z } from "zod";
 import { config, isAnthropicConfigured } from "@/lib/config";
 import {
   ParsedProjectSchema,
@@ -22,7 +22,7 @@ const SYSTEM_PROMPT = `You are an intake analyst for the Hays Caldwell Economic 
 
 RFIs are messy and inconsistent. Figures arrive in varying units, requirements may be time-phased, and some needs are qualitative. Extract everything you can and DO NOT invent facts. If a value is missing, leave it null.
 
-Return your extraction as the structured response.
+Call the record_rfi tool exactly once with your extraction. Do not reply with plain text.
 
 GENERAL RULES
 - codename: the project's anonymized codename (e.g. "Project Zero Sugar").
@@ -88,16 +88,32 @@ export async function parseRfi(input: ParseRfiInput): Promise<ParseRfiResult> {
     ...attachmentBlocks,
   ];
 
-  // Structured outputs, not a forced tool call: newer models (Sonnet 5.5+)
-  // reject tool_choice "tool"/"any" with a 400, and the extraction only ever
-  // needed a schema-valid JSON object back anyway.
+  // A plain (non-strict) tool with tool_choice "auto". Two API constraints rule
+  // out the alternatives:
+  //   • Newer models (Sonnet 5.5+) reject a forced tool_choice ("tool"/"any")
+  //     with a 400.
+  //   • Structured outputs (output_config.format or strict: true) allow at most
+  //     24 optional and 16 nullable fields per request. This schema has ~40 of
+  //     each, so every request failed with "Schema is too complex".
+  // The system prompt tells the model to call the tool, and the result is
+  // validated against the zod schema below.
+  const tool: Anthropic.Tool = {
+    name: "record_rfi",
+    description:
+      "Record the structured RFI extraction. Call exactly once with all fields you can determine.",
+    input_schema: z.toJSONSchema(ExtractedProjectSchema, {
+      target: "draft-2020-12",
+    }) as Anthropic.Tool.InputSchema,
+  };
+
   const request = (model: string) =>
-    client.messages.parse({
+    client.messages.create({
       model,
       max_tokens: 8000,
       system: SYSTEM_PROMPT,
+      tools: [tool],
+      tool_choice: { type: "auto" },
       messages: [{ role: "user", content: userContent }],
-      output_config: { format: zodOutputFormat(ExtractedProjectSchema) },
     });
 
   let model = resolved.model;
@@ -128,11 +144,20 @@ export async function parseRfi(input: ParseRfiInput): Promise<ParseRfiResult> {
       }. Enter it manually instead.`,
     );
   }
-  if (!response.parsed_output) {
+  const toolUse = response.content.find(
+    (block): block is Anthropic.ToolUseBlock =>
+      block.type === "tool_use" && block.name === "record_rfi",
+  );
+  if (!toolUse) {
     throw new Error("Claude did not return a structured RFI extraction.");
   }
 
-  // Re-parse through the full schema so legacy fields get their defaults.
-  const parsed = ParsedProjectSchema.parse(response.parsed_output);
-  return { proposal: parsed, model };
+  // Full schema so legacy fields get their defaults.
+  const result = ParsedProjectSchema.safeParse(toolUse.input);
+  if (!result.success) {
+    throw new Error(
+      `Claude's extraction did not match the expected fields: ${z.prettifyError(result.error)}`,
+    );
+  }
+  return { proposal: result.data, model };
 }

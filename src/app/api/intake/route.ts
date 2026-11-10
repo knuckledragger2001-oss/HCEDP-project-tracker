@@ -106,8 +106,12 @@ export async function POST(req: NextRequest) {
       });
     }
     console.error("Intake parse failed:", err);
+    // Staff can't see server logs, so include the reason in the message.
+    const reason = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: "Failed to parse RFI. See server logs for details." },
+      {
+        error: `Failed to parse RFI: ${reason.slice(0, 500)} You can use "Enter manually" instead.`,
+      },
       { status: 500 },
     );
   }
